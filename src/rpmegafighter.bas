@@ -22,6 +22,7 @@
    incgraphic bullet_conv.png
    incgraphic fighter_conv.png
    incgraphic asteroid_L_conv.png
+   incgraphic asteroid_M_conv.png
 
    ; ---- Dimensions ----
    dim px = var0
@@ -59,11 +60,20 @@
 
    ; Enemy Bullet Variables (Pool of 2)
    ; Using var60+
-   dim ebul_x  = var60 ; 60, 61
-   dim ebul_y  = var62 ; 62, 63
-   dim ebul_vx = var64 ; 64, 65
-   dim ebul_vy = var66 ; 66, 67
-   dim eblife  = var68 ; 68, 69
+   dim ebul_x  = var60 ; 60-63 ... Need High Bytes for these too?
+   ; For now, keep bullets/enemies strictly Screen Space?
+   ; User said "Infinite World". Everything needs to be World Space eventually.
+   ; Let's keep them Screen Space temporarily to confirm Player scrolling first.
+   dim ebul_y  = var64
+   dim ebul_vx = var68 ; 68-71
+   dim ebul_vy = var160 ; Moved to 160 safe zone
+   dim eblife  = var164 ; 164-167
+
+   ; High Byte Arrays for Bullets (World Coords)
+   dim bul_x_hi = var180 ; 180-183
+   dim bul_y_hi = var184 ; 184-187
+   dim ebul_x_hi = var188 ; 188-191
+   dim ebul_y_hi = var192 ; 192-195
    dim ecooldown = var70
    dim temp_w = var71
    
@@ -80,20 +90,23 @@
    dim cycle_state = var143
 
    ; Enemy Variables (Single Enemy for now)
-   dim ex = var40
-   dim ey = var41
-   dim evx = var42
-   dim evy = var43
-   dim elife = var44
-   ; Removed duplicate elife
-   dim rand_val = var45
+   ; Enemy Variables (Pool of 4)
+   ; var40-59 (20 bytes)
+   dim ex = var40 ; 40,41,42,43
+   dim ey = var44 ; 44,45,46,47
+   dim evx = var48 ; 48,49,50,51
+   dim evy = var52 ; 52,53,54,55
+   dim elife = var56 ; 56,57,58,59
+   
+   dim rand_val = var148
    
    ; Asteroid Variables (Single Large Asteroid)
-   dim ax = var50
-   dim ay = var51
-   dim avx = var52
-   dim avy = var53
-   dim alife = var54
+   ; Moved to var150 to make room for enemy arrays
+   dim ax = var150
+   dim ay = var151
+   dim avx = var152
+   dim avy = var153
+   dim alife = var154
    
    ; Aliases for plotsprite usage
    dim bul_x0 = var18 : dim bul_x1 = var19 : dim bul_x2 = var20 : dim bul_x3 = var21
@@ -115,30 +128,49 @@
    
    BACKGRND=$00 ; Set Background to Black
 
-   ; Initialize Variables
-   px = 80
-   py = 90
-   vx_p = 0
-   vx_m = 0
-   vy_p = 0
-   vy_m = 0
-   rx = 0
-   ry = 0
-   angle = 0
-   rot_timer = 0
-   shpfr = 0
-   frame = 0
-   bcooldown = 0
+    ; Initialize Variables
+    px = 80             ; Low byte (0-255)
+    dim px_hi = var170  ; High byte (0-4 for 1024)
+    px_hi = 0
+    py = 90
+    dim py_hi = var171
+    py_hi = 0
+    
+    ; Camera Vars
+    dim cam_x = var172
+    dim cam_x_hi = var173
+    dim cam_y = var174
+    dim cam_y_hi = var175
+    ; Init Camera centered on 80,90 initially? 
+    ; Let's start camera at 0,0 for now to match legacy behavior
+    cam_x = 0 : cam_x_hi = 0
+    cam_y = 0 : cam_y_hi = 0
+    
+    vx_p = 0
+    vx_m = 0
+    vy_p = 0
+    vy_m = 0
+    rx = 0
+    ry = 0
+    temp_bx = 0
+    temp_by = 0
+    angle = 0
+    rot_timer = 0
+    shpfr = 0
+    frame = 0
+    bcooldown = 0
    
    ; Clear bullets
    for iter = 0 to 3
       blife[iter] = 0
    next
    
-   elife = 0 ; Enemy inactive initially
    alife = 0 ; Asteroid inactive
    ecooldown = 0
    eblife[0] = 0 : eblife[1] = 0
+   
+   ; Clear enemies
+   elife[0]=0 : elife[1]=0 : elife[2]=0 : elife[3]=0
    
    gosub init_stars
 
@@ -169,29 +201,74 @@ main_loop
    
    ; ---- Physics Update ----
    ; Scaling factor 64 (6 bits fraction)
-   
    ; X Axis
-   move_step = (vx_p + rx) / 64
-   rx = (vx_p + rx) & 63
-   px = px + move_step
+   temp_v = vx_p - vx_m
+   
+   ; 16-bit Add: px = px + temp_v (signed scale?)
+   ; Current Logic: temp_v is "sub-pixels" effectively.
+   ; Let's assume temp_v is ~ 32 = 0.5px?
+   ; Old logic: px = px + (temp_v / 64)
+   ; New Logic: We want to accumulate sub-pixels.
+   ; We'll treat px/px_hi as 8.8 Fixed Point? No, px is integer pixel.
+   ; ---- Physics Update ----
+   ; X Axis
+   ; Positive
+   temp_v = vx_p + rx
+   rx = temp_v & 63
+   temp_w = temp_v / 64
+   
+   if temp_w = 0 then goto skip_pos_x
+      px = px + temp_w
+      if px < temp_w then px_hi = px_hi + 1
+skip_pos_x
 
-   move_step = (vx_m + rx) / 64
-   rx = (vx_m + rx) & 63
-   if px >= move_step then px = px - move_step else px = 0
+   ; Negative
+   ; Using temp_bx as accumulator
+   temp_v = vx_m + temp_bx
+   temp_bx = temp_v & 63
+   temp_w = temp_v / 64
+   
+   if temp_w = 0 then goto skip_neg_x
+      temp_v = px
+      px = px - temp_w
+      if px > temp_v then px_hi = px_hi - 1
+skip_neg_x
 
+   ; Wrap X
+   if px_hi >= 4 then px_hi = 0
+   if px_hi = 255 then px_hi = 3
+   
    ; Y Axis
-   move_step = (vy_p + ry) / 64
-   ry = (vy_p + ry) & 63
-   py = py + move_step
+   ; Positive (Down)
+   temp_v = vy_p + ry
+   ry = temp_v & 63
+   temp_w = temp_v / 64
+   
+   if temp_w = 0 then goto skip_pos_y
+      py = py + temp_w
+      if py < temp_w then py_hi = py_hi + 1
+skip_pos_y
+   
+   ; Negative (Up) (using temp_by accumulator)
+   temp_v = vy_m + temp_by
+   temp_by = temp_v & 63
+   temp_w = temp_v / 64
+   
+   if temp_w = 0 then goto skip_neg_y
+      temp_v = py
+      py = py - temp_w
+      if py > temp_v then py_hi = py_hi - 1
+skip_neg_y
 
-   move_step = (vy_m + ry) / 64
-   ry = (vy_m + ry) & 63
-   if py >= move_step then py = py - move_step else py = 0
+   ; Wrap Y
+   if py_hi >= 4 then py_hi = 0
+   if py_hi = 255 then py_hi = 3
 
    ; ---- Bullet Update ----
    gosub update_bullets
 
    ; ---- Enemy Update ----
+   if ecooldown > 0 then ecooldown = ecooldown - 1
    gosub update_enemy
    
    ; ---- Enemy Bullet Update ----
@@ -206,27 +283,36 @@ main_loop
    ; ---- Friction ----
    gosub apply_friction
 
-   ; ---- Boundaries ----
-   if px > 150 then px = 150
-   if px < 4 then px = 4
-   if py > 180 then py = 180
-   if py < 4 then py = 4
+   ; ---- Boundaries (REMOVED - World Wraps) ----
+   ; if px > 150 then px = 150 ...
+
+   ; ---- Camera Update ----
+   gosub update_camera
 
    ; ---- Draw ----
-   plotsprite sprite_spaceship1 5 px py shpfr
-   
-   gosub draw_stars
+   ; Calculate Player Screen Position (relative to camera)
+   temp_v = px - cam_x
+   temp_w = py - cam_y
+   plotsprite sprite_spaceship1 5 temp_v temp_w shpfr
+    
+    gosub draw_stars
 
-   if blife0 > 0 then plotsprite bullet_conv 1 bul_x0 bul_y0
-   if blife1 > 0 then plotsprite bullet_conv 1 bul_x1 bul_y1
-   if blife2 > 0 then plotsprite bullet_conv 1 bul_x2 bul_y2
-   if blife3 > 0 then plotsprite bullet_conv 1 bul_x3 bul_y3
+    if blife0 > 0 then temp_v = bul_x0 - cam_x : temp_w = bul_y0 - cam_y : plotsprite bullet_conv 1 temp_v temp_w
+    if blife1 > 0 then temp_v = bul_x1 - cam_x : temp_w = bul_y1 - cam_y : plotsprite bullet_conv 1 temp_v temp_w
+    if blife2 > 0 then temp_v = bul_x2 - cam_x : temp_w = bul_y2 - cam_y : plotsprite bullet_conv 1 temp_v temp_w
+    if blife3 > 0 then temp_v = bul_x3 - cam_x : temp_w = bul_y3 - cam_y : plotsprite bullet_conv 1 temp_v temp_w
+    
+    if elife[0] > 0 then temp_v = ex[0] - cam_x : temp_w = ey[0] - cam_y : plotsprite fighter_conv 3 temp_v temp_w
+    if elife[1] > 0 then temp_v = ex[1] - cam_x : temp_w = ey[1] - cam_y : plotsprite fighter_conv 3 temp_v temp_w
+    if elife[2] > 0 then temp_v = ex[2] - cam_x : temp_w = ey[2] - cam_y : plotsprite fighter_conv 3 temp_v temp_w
+    if elife[3] > 0 then temp_v = ex[3] - cam_x : temp_w = ey[3] - cam_y : plotsprite fighter_conv 3 temp_v temp_w
+    
+    if alife > 0 then temp_v = ax - cam_x : temp_w = ay - cam_y : plotsprite asteroid_M_conv 2 temp_v temp_w
    
-   if elife > 0 then plotsprite fighter_conv 3 ex ey
-   if alife > 0 then plotsprite asteroid_L_conv 2 ax ay
-   
-   if eblife[0] > 0 then temp_v = ebul_x[0] : temp_w = ebul_y[0] : plotsprite bullet_conv 3 temp_v temp_w
-   if eblife[1] > 0 then temp_v = ebul_x[1] : temp_w = ebul_y[1] : plotsprite bullet_conv 3 temp_v temp_w
+    if eblife[0] > 0 then temp_v = ebul_x[0] - cam_x : temp_w = ebul_y[0] - cam_y : plotsprite bullet_conv 3 temp_v temp_w
+    if eblife[1] > 0 then temp_v = ebul_x[1] - cam_x : temp_w = ebul_y[1] - cam_y : plotsprite bullet_conv 3 temp_v temp_w
+    if eblife[2] > 0 then temp_v = ebul_x[2] - cam_x : temp_w = ebul_y[2] - cam_y : plotsprite bullet_conv 3 temp_v temp_w
+    if eblife[3] > 0 then temp_v = ebul_x[3] - cam_x : temp_w = ebul_y[3] - cam_y : plotsprite bullet_conv 3 temp_v temp_w
 
    drawscreen
    goto main_loop
@@ -300,21 +386,45 @@ move_one_bullet
    ; Move based on bvx/bvy (simple signed integers 0-255 where 128+ is negative)
    ; X Axis
    temp_v = bul_vx[iter]
-   if temp_v < 128 then bul_x[iter] = bul_x[iter] + temp_v
-   if temp_v >= 128 then temp_v = 0 - temp_v : bul_x[iter] = bul_x[iter] - temp_v
+   if temp_v >= 128 then goto bul_x_neg
+   
+   ; Positive X
+   bul_x[iter] = bul_x[iter] + temp_v
+   if bul_x[iter] < temp_v then bul_x_hi[iter] = bul_x_hi[iter] + 1
+   goto bul_x_done
+
+bul_x_neg
+   temp_v = 0 - temp_v
+   temp_w = bul_x[iter]
+   bul_x[iter] = bul_x[iter] - temp_v
+   if bul_x[iter] > temp_w then bul_x_hi[iter] = bul_x_hi[iter] - 1
+
+bul_x_done
+   ; Wrap X
+   if bul_x_hi[iter] >= 4 then bul_x_hi[iter] = 0
+   if bul_x_hi[iter] = 255 then bul_x_hi[iter] = 3
    
    ; Y Axis
    temp_v = bul_vy[iter]
-   if temp_v < 128 then bul_y[iter] = bul_y[iter] + temp_v
-   if temp_v >= 128 then temp_v = 0 - temp_v : bul_y[iter] = bul_y[iter] - temp_v
+   if temp_v >= 128 then goto bul_y_neg
    
-   ; Bounds Check
-   if bul_x[iter] > 160 then blife[iter] = 0
-   if bul_x[iter] > 240 then blife[iter] = 0 ; Catch underflow wrapping (e.g. 255)
-   if bul_y[iter] > 192 then blife[iter] = 0
-   if bul_y[iter] > 240 then blife[iter] = 0 ; Catch underflow wrapping
+   ; Positive Y
+   bul_y[iter] = bul_y[iter] + temp_v
+   if bul_y[iter] < temp_v then bul_y_hi[iter] = bul_y_hi[iter] + 1
+   goto bul_y_done
+
+bul_y_neg
+   temp_v = 0 - temp_v
+   temp_w = bul_y[iter]
+   bul_y[iter] = bul_y[iter] - temp_v
+   if bul_y[iter] > temp_w then bul_y_hi[iter] = bul_y_hi[iter] - 1
+
+bul_y_done
+   ; Wrap Y
+   if bul_y_hi[iter] >= 4 then bul_y_hi[iter] = 0
+   if bul_y_hi[iter] = 255 then bul_y_hi[iter] = 3
    
-   ; Lifetime Check (Optional, but safe)
+   ; Lifetime Check
    if blife[iter] > 0 then blife[iter] = blife[iter] - 1
    return
 
@@ -328,7 +438,9 @@ fire_bullet
 spawn_bullet
    blife[iter] = 60 ; Last 60 frames ~ 1 sec
    bul_x[iter] = px
+   bul_x_hi[iter] = px_hi
    bul_y[iter] = py
+   bul_y_hi[iter] = py_hi
    
    ; Set velocity based on angle
    ; Use sin_table values * factor ~ 10-15?
@@ -336,10 +448,7 @@ spawn_bullet
    ; We want 4px/frame. 4 / 6 is not right.
    ; Let's just create a quick separate scaling or just use the table * 1 (too slow)
    ; The table 'sin_table' has values like 0,2,4,6.
-   ; If we treat them as pixel speed, max 6 is SUPER FAST.
-   ; NOTE: Player physics uses table as ACCELERATION (added to velocity).
-   ; Check table: 0, 2, 4, 6...
-   ; If we use these directly as speed, 6px/frame is very fast. 4px/frame is target.
+   ; If we treat them as pixel speed, 6px/frame is very fast. 4px/frame is target.
    ; Let's assume table values are roughly "direction * magnitude".
    ; We can divide by 2? 6/2 = 3px/frame. Close enough.
    
@@ -367,8 +476,6 @@ spawn_bullet
    ; Value -6 (250) -> +3.
    if temp_v >= 128 then temp_v = (0 - temp_v) / 2 : bul_vy[iter] = temp_v
    
-   if temp_v >= 128 then temp_v = (0 - temp_v) / 2 : bul_vy[iter] = temp_v
-   
    ; Play sound
    playsfx sfx_laser 0
    
@@ -376,108 +483,140 @@ spawn_bullet
    return
 
 update_enemy
-   if elife = 0 then gosub spawn_enemy
-   if elife = 0 then return
-   
-   ; Simple AI: Slowly adjust velocity towards player
-   ; Check X diff
-   ; (temp_acc logic removed as we use direct movement below)
-   ; Add to velocity (with cap)
-   ; Use simple logic: if ex < px, increase evx. if ex > px, decrease evx.
-   ; Max speed ~1 px/frame (value 64 in 6.2 fixed? No, using simple integer for enemy initially? 
-   ; Let's use 8.8 fixed point for enemy too? Or just simple integers?
-   ; Let's stick to simple integers for enemy position to save vars, but slow movement is hard with integers.
-   ; Let's use a "timer" to move every N frames instead.
-   
-   ; Move every 2nd frame
-   if (frame & 1) = 0 then goto move_enemy_step
-   
-   ; Try to fire?
-   if ecooldown > 0 then ecooldown = ecooldown - 1
-   if ecooldown = 0 then gosub fire_enemy_bullet
+    ; Loop through all potential enemies
+    for iter = 0 to 3
+       if elife[iter] = 0 then goto try_spawn_enemy
+       
+       ; --- Movement Logic (per enemy) ---
+       ; Move every 2nd frame
+       if (frame & 1) > 0 then goto enemy_logic_done
+       
+       ; Chase Logic using temp vars
+       temp_v = ex[iter]
+       temp_w = ey[iter]
+       
+       if temp_v < px then temp_v = temp_v + 1
+       if temp_v > px then temp_v = temp_v - 1
+       if temp_w < py then temp_w = temp_w + 1
+       if temp_w > py then temp_w = temp_w - 1
+       
+       ex[iter] = temp_v
+       ey[iter] = temp_w
+       
+       ; Firing Chance (Global Cooldown)
+       if ecooldown > 0 then goto skip_firing_chance
+       
+       ; Chance to fire (1 in 16 per frame)
+       rand_val = frame + iter
+       rand_val = rand_val & 15
+       if rand_val = 0 then gosub fire_enemy_bullet
+          
+skip_firing_chance
+       goto enemy_logic_done
 
-   return
-   
-move_enemy_step
-   ; Chase Logic
-   if ex < px then ex = ex + 1
-   if ex > px then ex = ex - 1
-   if ey < py then ey = ey + 1
-   if ey > py then ey = ey - 1
-   
-   return
+   P2C1=$04: P2C2=$08: P2C3=$0C ; Asteroids (Greys)
 
-spawn_enemy
-   ; Random spawn chance 1/100
-   rand_val = frame & 127
-   if rand_val > 5 then return
-   
-   elife = 1
-   ; Spawn at random edge
-   rand_val = frame & 3
-   if rand_val = 0 then ex = 5 : ey = 90 ; Left
-   if rand_val = 1 then ex = 155 : ey = 90 ; Right
-   if rand_val = 2 then ex = 80 : ey = 5 ; Top
-   if rand_val = 3 then ex = 80 : ey = 175 ; Bottom
-   
-   return
+       goto enemy_logic_done
+
+try_spawn_enemy
+       ; Random Spawn Chance
+       rand_val = frame & 127
+       if rand_val > 5 then goto enemy_logic_done
+       
+       ; Spawn logic inline
+       elife[iter] = 1
+       ; Mix iter into randomness so they don't all spawn at same spot
+       temp_v = frame + iter
+       rand_val = temp_v & 3
+       if rand_val = 0 then ex[iter] = 5 : ey[iter] = 90
+       if rand_val = 1 then ex[iter] = 155 : ey[iter] = 90
+       if rand_val = 2 then ex[iter] = 80 : ey[iter] = 5
+       if rand_val = 3 then ex[iter] = 80 : ey[iter] = 175
+       
+enemy_logic_done
+    next
+    return
 
 fire_enemy_bullet
-   ; Find free slot
-   for iter = 0 to 1
-      if eblife[iter] = 0 then goto spawn_ebul
+   ; ITER holds current enemy index
+   ; Find free bullet slot
+   for temp_acc = 0 to 3
+      if eblife[temp_acc] = 0 then goto spawn_ebul
    next
    return
 
 spawn_ebul
-   eblife[iter] = 60 ; frames
-   ebul_x[iter] = ex   ; Center alignment
-   ebul_y[iter] = ey + 6 ; Moved up 2 pixels as requested
+   ; temp_acc is bullet index
+   ; iter is enemy index
+   eblife[temp_acc] = 60
+   ebul_x[temp_acc] = ex[iter]
+   ebul_x_hi[temp_acc] = cam_x_hi ; Approx (assuming local enemy)
+   ebul_y[temp_acc] = ey[iter] + 6
+   ebul_y_hi[temp_acc] = cam_y_hi ; Approx
    
-   ; Aim at player: Determine signs and magnitude
-   ; dx in temp_bx, dy in temp_by
-   if px < ex then ebul_vx[iter] = 253 : temp_bx = ex - px else ebul_vx[iter] = 3 : temp_bx = px - ex
-   if py < ey then ebul_vy[iter] = 253 : temp_by = ey - py else ebul_vy[iter] = 3 : temp_by = py - ey
+   temp_v = ex[iter] ; Store ex in temp for logic
+   temp_w = ey[iter] ; Store ey
    
-   ; 8-Way Logic: Zero out the minor axis if the major axis is > 2x larger
-   ; Check Horizontal Dominance: if dx > 2*dy
-   ; Safe check: if dx/2 > dy
+   ; Aim at player
+   ; using temp_v/w instead of array access for speed/clarity
+   if px < temp_v then ebul_vx[temp_acc] = 253 : temp_bx = temp_v - px else ebul_vx[temp_acc] = 3 : temp_bx = px - temp_v
+   if py < temp_w then ebul_vy[temp_acc] = 253 : temp_by = temp_w - py else ebul_vy[temp_acc] = 3 : temp_by = py - temp_w
+   
+   ; 8-way logic
    temp_v = temp_bx / 2
-   if temp_v > temp_by then ebul_vy[iter] = 0
+   if temp_v > temp_by then ebul_vy[temp_acc] = 0
    
-   ; Check Vertical Dominance: if dy > 2*dx
-   ; Safe check: if dy/2 > dx
    temp_v = temp_by / 2
-   if temp_v > temp_bx then ebul_vx[iter] = 0
+   if temp_v > temp_bx then ebul_vx[temp_acc] = 0
    
-   ecooldown = 60 ; 2 seconds
-   return
-   
-   ; Crude Vector Logic:
-   ; If abs(dx) > abs(dy)*2 -> Move X only
-   ; If abs(dy) > abs(dx)*2 -> Move Y only
-   ; Else Move Diagonal
-   
-   ; Just use the signs for now (Diagonal always)
-   
-   ecooldown = 60 ; 2 seconds
+   ecooldown = 15 ; Reduced from 60 to allow multiple bullets on screen
    return
 
 update_enemy_bullets
-   for iter = 0 to 1
+   for iter = 0 to 3
       if eblife[iter] = 0 then goto skip_ebul_update
       
       eblife[iter] = eblife[iter] - 1
       
       ; Move X
       temp_v = ebul_vx[iter]
-      if temp_v < 128 then ebul_x[iter] = ebul_x[iter] + temp_v
-      if temp_v >= 128 then temp_v = 0 - temp_v : ebul_x[iter] = ebul_x[iter] - temp_v
+      if temp_v >= 128 then goto ebul_x_neg
+      
+      ; Positive X
+      ebul_x[iter] = ebul_x[iter] + temp_v
+      if ebul_x[iter] < temp_v then ebul_x_hi[iter] = ebul_x_hi[iter] + 1
+      goto ebul_x_done
+
+ebul_x_neg
+      temp_v = 0 - temp_v
+      temp_w = ebul_x[iter]
+      ebul_x[iter] = ebul_x[iter] - temp_v
+      if ebul_x[iter] > temp_w then ebul_x_hi[iter] = ebul_x_hi[iter] - 1
+
+ebul_x_done
+      ; Wrap X
+      if ebul_x_hi[iter] >= 4 then ebul_x_hi[iter] = 0
+      if ebul_x_hi[iter] = 255 then ebul_x_hi[iter] = 3
       
       ; Move Y
       temp_v = ebul_vy[iter]
-      if temp_v < 128 then ebul_y[iter] = ebul_y[iter] + temp_v
-      if temp_v >= 128 then temp_v = 0 - temp_v : ebul_y[iter] = ebul_y[iter] - temp_v
+      if temp_v >= 128 then goto ebul_y_neg
+      
+      ; Positive Y
+      ebul_y[iter] = ebul_y[iter] + temp_v
+      if ebul_y[iter] < temp_v then ebul_y_hi[iter] = ebul_y_hi[iter] + 1
+      goto ebul_y_done
+
+ebul_y_neg
+      temp_v = 0 - temp_v
+      temp_w = ebul_y[iter]
+      ebul_y[iter] = ebul_y[iter] - temp_v
+      if ebul_y[iter] > temp_w then ebul_y_hi[iter] = ebul_y_hi[iter] - 1
+
+ebul_y_done
+      ; Wrap Y
+      if ebul_y_hi[iter] >= 4 then ebul_y_hi[iter] = 0
+      if ebul_y_hi[iter] = 255 then ebul_y_hi[iter] = 3
 
 skip_ebul_update
    next
@@ -531,49 +670,55 @@ spawn_asteroid
    return
 
 check_collisions
-   ; 1. Bullets vs Enemy
-   if elife = 0 then goto check_player_enemy
-   
-   for iter = 0 to 3
+   ; 1. Bullets vs Enemies (Loop both)
+   for iter = 0 to 3 ; Bullets
       if blife[iter] = 0 then goto skip_bullet_coll
       
-      ; Check X overlap (Box 6px approx for smaller sprites)
-      temp_v = bul_x[iter] - ex
-      if temp_v >= 128 then temp_v = 0 - temp_v
-      if temp_v >= 6 then goto skip_bullet_coll
+      for temp_acc = 0 to 3 ; Enemies
+         if elife[temp_acc] = 0 then goto skip_enemy_coll
+         
+         ; Check X
+         temp_v = bul_x[iter] - ex[temp_acc]
+         if temp_v >= 128 then temp_v = 0 - temp_v
+         if temp_v >= 6 then goto skip_enemy_coll
+         
+         ; Check Y
+         temp_v = bul_y[iter] - ey[temp_acc]
+         if temp_v >= 128 then temp_v = 0 - temp_v
+         if temp_v >= 6 then goto skip_enemy_coll
+         
+         ; Hit!
+         blife[iter] = 0
+         elife[temp_acc] = 0
+         goto skip_enemy_coll ; Bullet used up
+         
+skip_enemy_coll
+      next
       
-      ; Check Y overlap
-      temp_v = bul_y[iter] - ey
-      if temp_v >= 128 then temp_v = 0 - temp_v
-      if temp_v >= 6 then goto skip_bullet_coll
-      
-      ; Hit!
-      blife[iter] = 0
-      elife = 0
-      goto check_player_enemy
-
 skip_bullet_coll
    next
-
    
-check_player_enemy
-   if elife = 0 then goto check_asteroid_coll
-
-   ; 2. Player vs Enemy
-   ; Check X overlap
-   temp_v = px - ex
-   if temp_v >= 128 then temp_v = 0 - temp_v
-   if temp_v >= 8 then goto check_asteroid_coll
+   ; 2. Player vs Enemies
+   for iter = 0 to 3
+      if elife[iter] = 0 then goto skip_p_e
+      
+      temp_v = px - ex[iter]
+      if temp_v >= 128 then temp_v = 0 - temp_v
+      if temp_v >= 8 then goto skip_p_e
+      
+      temp_v = py - ey[iter]
+         if temp_v >= 128 then temp_v = 0 - temp_v
+      if temp_v >= 8 then goto skip_p_e
+      
+      ; Hit Player
+      elife[iter] = 0
+      ; TODO: Death
+      
+skip_p_e
+   next
    
-   ; Check Y overlap
-   temp_v = py - ey
-   if temp_v >= 128 then temp_v = 0 - temp_v
-   if temp_v >= 8 then goto check_asteroid_coll
+   goto check_asteroid_coll
    
-   ; Hit Player!
-   elife = 0
-   ; TODO: Player Death
-
 check_asteroid_coll
    if alife = 0 then goto coll_done
 
@@ -587,19 +732,17 @@ check_asteroid_coll
       if blife[iter] = 0 then goto skip_bul_ast
       
       ; X Check
+      ; Medium Asteroid (16x16 approx). Center at +8.
       temp_v = bul_x[iter] - ax
       temp_v = temp_v - 8
       if temp_v >= 128 then temp_v = 0 - temp_v
-      if temp_v >= 20 then goto skip_bul_ast
+      if temp_v >= 10 then goto skip_bul_ast
       
       ; Y Check
-      ; Bullet Center By+8. Asteroid Center Ay+32.
-      ; Perfect: By+8 = Ay+32 => By = Ay+24.
-      ; Check: abs(By - Ay - 24) < ThresholdY (32)
       temp_v = bul_y[iter] - ay
-      temp_v = temp_v - 24
+      temp_v = temp_v - 8
       if temp_v >= 128 then temp_v = 0 - temp_v
-      if temp_v >= 30 then goto skip_bul_ast ; Slightly tighter than 32
+      if temp_v >= 10 then goto skip_bul_ast
       
       ; Hit!
       blife[iter] = 0
@@ -628,8 +771,8 @@ skip_bul_ast
    ; TODO: Player Death
 
 check_player_ebul
-   ; Check vs Enemy Bullets (2 of them)
-   for iter = 0 to 1
+   ; Check vs Enemy Bullets (4 of them)
+   for iter = 0 to 3
       if eblife[iter] = 0 then goto skip_ebul_coll
       
       ; X Check
@@ -678,10 +821,12 @@ init_stars
 
 draw_stars
    for iter = 0 to 19
+      ; Debugging: 1:1 Scrolling to verify camera smoothness
+      temp_v = star_x[iter] - cam_x
+      
+      temp_w = star_y[iter] - cam_y
+      
       ; Reuse bullet_conv sprite (2x2 pixel)
-      ; Use Palette 4
-      temp_v = star_x[iter]
-      temp_w = star_y[iter]
       plotsprite bullet_conv 4 temp_v temp_w
    next
    return
@@ -703,6 +848,39 @@ cycle_stars
    if cycle_state = 0 then P4C1=$08: P4C2=$0C: P4C3=$0F
    if cycle_state = 1 then P4C1=$0C: P4C2=$0F: P4C3=$08
    if cycle_state = 2 then P4C1=$0F: P4C2=$08: P4C3=$0C
+   return
+
+update_camera
+   ; Simple Center Lock
+   ; cam_x = px - 80
+   
+   temp_v = px
+   cam_x = px - 80
+   cam_x_hi = px_hi
+   if cam_x > temp_v then cam_x_hi = cam_x_hi - 1 ; Borrow
+   
+   ; Wrap Cam X
+   if cam_x_hi = 255 then cam_x_hi = 3
+   if cam_x_hi >= 4 then cam_x_hi = 0
+
+   ; cam_y = py - 90
+   temp_v = py
+   cam_y = py - 90
+   cam_y_hi = py_hi
+   if cam_y > temp_v then cam_y_hi = cam_y_hi - 1
+   
+   ; Wrap Cam Y
+   if cam_y_hi = 255 then cam_y_hi = 3
+   if cam_y_hi >= 4 then cam_y_hi = 0
+   
+   return
+
+   ; Y Axis Deadzone (70 - 110)
+   ; Note: py and cam_y are Low Bytes. Need Hi Byte support? Yes.
+   ; But screen is only 192 high. World is 1024.
+   
+   ; Just use primitive following for now.
+   ; screen_y = py - cam_y (approx)
    return
 
    ; ---- Data Tables (ROM) ----

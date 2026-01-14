@@ -1,8 +1,14 @@
 ; This file contains variable mapping and other information for the current project.
 
-asteroid_L_conv_tallsprite_03_mode = $00
-asteroid_L_conv_tallsprite_03_width_twoscompliment = $00
-asteroid_L_conv_tallsprite_03_width = $00
+asteroid_M_conv_tallsprite_01_mode = $00
+asteroid_M_conv_tallsprite_01_width_twoscompliment = $00
+asteroid_M_conv_tallsprite_01_width = $00
+asteroid_M_conv_tallsprite_00_mode = $00
+asteroid_M_conv_tallsprite_00_width_twoscompliment = $1c
+asteroid_M_conv_tallsprite_00_width = $04
+asteroid_M_conv_mode = $00
+asteroid_M_conv_width_twoscompliment = $1c
+asteroid_M_conv_width = $04
 asteroid_L_conv_tallsprite_02_mode = $00
 asteroid_L_conv_tallsprite_02_width_twoscompliment = $18
 asteroid_L_conv_tallsprite_02_width = $08
@@ -77,6 +83,18 @@ sc2 = var141
  
 sc1 = var140
  
+cam_y_hi = var175
+ 
+cam_y = var174
+ 
+cam_x_hi = var173
+ 
+cam_x = var172
+ 
+py_hi = var171
+ 
+px_hi = var170
+ 
 blife3 = var37
  
 blife2 = var36 
@@ -92,25 +110,25 @@ bul_x3 = var21
 bul_x2 = var20 
 bul_x1 = var19 
 bul_x0 = var18 
-alife = var54
+alife = var154
  
-avy = var53
+avy = var153
  
-avx = var52
+avx = var152
  
-ay = var51
+ay = var151
  
-ax = var50
+ax = var150
  
-rand_val = var45
+rand_val = var148
  
-elife = var44
+elife = var56
  
-evy = var43
+evy = var52
  
-evx = var42
+evx = var48
  
-ey = var41
+ey = var44
  
 ex = var40
  
@@ -132,13 +150,21 @@ temp_w = var71
  
 ecooldown = var70
  
-eblife = var68
+ebul_y_hi = var192
  
-ebul_vy = var66
+ebul_x_hi = var188
  
-ebul_vx = var64
+bul_y_hi = var184
  
-ebul_y = var62
+bul_x_hi = var180
+ 
+eblife = var164
+ 
+ebul_vy = var160
+ 
+ebul_vx = var68
+ 
+ebul_y = var64
  
 ebul_x = var60
  
@@ -192,6 +218,14 @@ py = var1
  
 px = var0
  
+asteroid_M_conv_tallsprite_00_color3 = $0f
+asteroid_M_conv_tallsprite_00_color2 = $38
+asteroid_M_conv_tallsprite_00_color1 = $1d
+asteroid_M_conv_tallsprite_00_color0 = $00
+asteroid_M_conv_color3 = $0f
+asteroid_M_conv_color2 = $38
+asteroid_M_conv_color1 = $1d
+asteroid_M_conv_color0 = $00
 asteroid_L_conv_tallsprite_02_color3 = $0f
 asteroid_L_conv_tallsprite_02_color2 = $38
 asteroid_L_conv_tallsprite_02_color1 = $1d
