@@ -1,6 +1,6 @@
    displaymode 160A
-   set zoneheight 16 
-
+   set doublewide on
+ 
    ; Import graphics
    incgraphic sprite_spaceship1.png
    incgraphic sprite_spaceship2.png
@@ -23,22 +23,10 @@
    incgraphic fighter_conv.png
    incgraphic asteroid_L_conv.png
    incgraphic asteroid_M_conv.png
-   incgraphic scoredigits_s00.png
-   incgraphic scoredigits_s01.png
-   incgraphic scoredigits_s02.png
-   incgraphic scoredigits_s03.png
-   incgraphic scoredigits_s04.png
-   incgraphic scoredigits_s05.png
-   incgraphic scoredigits_s06.png
-   incgraphic scoredigits_s07.png
-   incgraphic scoredigits_s08.png
-   incgraphic scoredigits_s09.png
-   incgraphic scoredigits_s10.png
-   incgraphic scoredigits_s11.png
-   incgraphic scoredigits_s12.png
-   incgraphic scoredigits_s13.png
-   incgraphic scoredigits_s14.png
-   incgraphic scoredigits_s15.png
+   incgraphic tileset_blanks.png 160A 3 0 1 2
+   incgraphic scoredigits_8_wide.png
+
+   characterset tileset_blanks
 
    ; ---- Dimensions ----
    dim px = var0
@@ -323,30 +311,26 @@ skip_neg_y
    ; ---- Camera Update ----
    gosub update_camera
 
-   ; ---- Draw ----
-   ; Calculate Player Screen Position (relative to camera)
-   temp_v = px - cam_x
-   temp_w = py - cam_y
-   plotsprite sprite_spaceship1 5 temp_v temp_w shpfr
-    
-    gosub draw_stars
-
-    gosub draw_player_bullets
-    
-    gosub draw_enemies
-    
-     if alife > 0 then gosub draw_asteroid
-   
-    gosub draw_enemy_bullets
-    
+    ; ---- Draw ----
     ; Draw Scores
     bcd_score = converttobcd(score_p)
-    plotvalue scoredigits_s00 5 bcd_score 2 10 10
+    plotvalue scoredigits_8_wide 5 bcd_score 2 10 10
     
     bcd_score = converttobcd(score_e)
-    plotvalue scoredigits_s00 3 bcd_score 2 130 10
+    plotvalue scoredigits_8_wide 3 bcd_score 2 130 10
 
-   drawscreen
+    ; Calculate Player Screen Position (relative to camera)
+    temp_v = px - cam_x
+    temp_w = py - cam_y
+    plotsprite sprite_spaceship1 5 temp_v temp_w shpfr
+     
+    gosub draw_stars
+    gosub draw_player_bullets
+    gosub draw_enemies
+    if alife > 0 then gosub draw_asteroid
+    gosub draw_enemy_bullets
+ 
+    drawscreen
    goto main_loop
 
 check_rotation
@@ -1003,7 +987,7 @@ coll_done
    return
 
 init_stars
-   for iter = 0 to 19
+   for iter = 0 to 9
       ; Random X (0-159)
       rand_val = frame & 127 : temp_v = rand_val
       rand_val = frame & 32 : temp_v = temp_v + rand_val
