@@ -106,6 +106,10 @@
    ; High Byte Arrays for Enemies (World Support)
    dim ex_hi = var74 ; 74,75,76,77 (Using Buffer)
    
+   ; Physics Accumulators (Dedicated)
+   dim acc_mx = var78
+   dim acc_my = var79
+   
    dim rand_val = var148
    
    ; Asteroid Variables (Single Large Asteroid)
@@ -122,7 +126,8 @@
    dim bul_x0 = var18 : dim bul_x1 = var19 : dim bul_x2 = var20 : dim bul_x3 = var21
    dim bul_y0 = var22 : dim bul_y1 = var23 : dim bul_y2 = var24 : dim bul_y3 = var25
    dim blife0 = var34 : dim blife1 = var35 : dim blife2 = var36 : dim blife3 = var37
- ; 0 = inactive, >0 = active frames
+
+   ; 0 = inactive, >0 = active frames
    
    ; Remainder arrays for bullets (optional, if we want sub-pixel accuracy)
    ; For 4px/frame speed, sub-pixel is less critical, but angles might need it.
@@ -168,10 +173,12 @@ cold_start
     cam_x = 0 : cam_x_hi = 0
     cam_y = 0 : cam_y_hi = 0
     
-    vx_p = 0
-    vx_m = 0
-    vy_p = 0
-    vy_m = 0
+    ; Init Physics (Prevent Jitter)
+    vx_p = 0 : vx_m = 0 : acc_mx = 0
+    vy_p = 0 : vy_m = 0 : acc_my = 0
+    
+    ; Other vars
+    angle = 0
     rx = 0
     ry = 0
     temp_bx = 0
@@ -198,6 +205,9 @@ cold_start
 
 main_loop
    clearscreen
+   
+   ; score_p = cam_x ; DEBUG
+   ; score_e = px    ; DEBUG
 
    ; ---- Frame Counter ----
    frame = frame + 1
@@ -245,9 +255,9 @@ main_loop
 skip_pos_x
 
    ; Negative
-   ; Using temp_bx as accumulator
-   temp_v = vx_m + temp_bx
-   temp_bx = temp_v & 63
+   ; Using dedicated accumulator
+   temp_v = vx_m + acc_mx
+   acc_mx = temp_v & 63
    temp_w = temp_v / 64
    
    if temp_w = 0 then goto skip_neg_x
@@ -272,8 +282,8 @@ skip_neg_x
 skip_pos_y
    
    ; Negative (Up) (using temp_by accumulator)
-   temp_v = vy_m + temp_by
-   temp_by = temp_v & 63
+   temp_v = vy_m + acc_my
+   acc_my = temp_v & 63
    temp_w = temp_v / 64
    
    if temp_w = 0 then goto skip_neg_y
@@ -1084,11 +1094,11 @@ update_camera
    ; Boosted max acceleration to 6 (was 3) to fix crawling
    data sin_table
    0, 2, 3, 4, 4, 4, 3, 2, 0, 254, 253, 252, 252, 252, 253, 254
-   end
+end
 
    data cos_table
    6, 6, 4, 2, 0, 254, 252, 250, 250, 250, 252, 254, 0, 2, 4, 6
-   end
+end
    
    data sfx_laser
    16, 1, 4 ; version, priority, frames per chunk
@@ -1096,7 +1106,8 @@ update_camera
    $15,$02,$06
    $12,$02,$06
    $00,$00,$00
-   end
+end
+
 draw_player_bullets
    for iter = 0 to 3
       if blife[iter] = 0 then goto skip_draw_bul
@@ -1204,15 +1215,17 @@ draw_asteroid
    return
 
 you_win
-   clearscreen
-   BACKGRND= ; Greenish Blue
-   drawscreen
-   if joy0fire0 then goto cold_start
-   goto you_win
+   ;clearscreen
+   ;BACKGRND=$B4 ; Greenish Blue
+   ;drawscreen
+   ;if joy0fire0 then goto cold_start
+   ;goto you_win
+   goto cold_start
 
 you_lose
-   clearscreen
-   BACKGRND= ; Red
-   drawscreen
-   if joy0fire0 then goto cold_start
-   goto you_lose
+   ;clearscreen
+   ;BACKGRND=$44 ; Red
+   ;drawscreen
+   ;if joy0fire0 then goto cold_start
+   ;goto you_lose
+   goto cold_start
