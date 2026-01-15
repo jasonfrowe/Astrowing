@@ -30,22 +30,23 @@ def convert_to_atari_7800(filename):
         height = new_height
         
         # 7800Basic zone height compatibility:
-        # If image is smaller than 16x16, pad it to 16x16 to prevent reading into next sprite data.
-        # This fixes "bleeding" issues with small sprites like bullet (2x2).
-        target_w = max(width, 16)
+        # User reported bleeding (reading next sprite) when height < zoneheight (16).
+        # We MUST pad height to 16px.
+        # We CAN optimize width, but MUST be at least 1 Byte wide (4 pixels in 160A mode).
+        # 2px width (nibble) causes corruption/bleed.
+        target_w = max(width, 4)
         target_h = max(height, 16)
         
         # Create a "P" image with strict palette
         # Init with 0 (transparent)
         new_img = Image.new("P", (target_w, target_h), 0)
         
-        # Calculate offset to center? Or top-left?
-        # Top-left (0,0) is safest for sprite alignment usually, or center for rotation.
-        # Bullets are 2x2, let's put them at (7,7) for center? 
-        # Or just (0,0) and let user adjust offset?
-        # Let's center it.
+        # Alignment: Top-Left (Offset 0)
+        # Keeps (X,Y) logic consistent.
+        # Center horizontally if padded? 
+        # Bullet (2px) in 4px: Offset 1.
         off_x = (target_w - width) // 2
-        off_y = (target_h - height) // 2
+        off_y = 0
         
         # Manual pixel mapping (same as before) logic
         pixels = img.load()

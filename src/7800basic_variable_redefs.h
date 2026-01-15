@@ -22,11 +22,11 @@ asteroid_L_conv_mode = $00
 asteroid_L_conv_width_twoscompliment = $18
 asteroid_L_conv_width = $08
 fighter_conv_mode = $00
-fighter_conv_width_twoscompliment = $1c
-fighter_conv_width = $04
+fighter_conv_width_twoscompliment = $1f
+fighter_conv_width = $01
 bullet_conv_mode = $00
-bullet_conv_width_twoscompliment = $1c
-bullet_conv_width = $04
+bullet_conv_width_twoscompliment = $1f
+bullet_conv_width = $01
 sprite_spaceship16_mode = $00
 sprite_spaceship16_width_twoscompliment = $1c
 sprite_spaceship16_width = $04
@@ -110,6 +110,10 @@ bul_x3 = var21
 bul_x2 = var20 
 bul_x1 = var19 
 bul_x0 = var18 
+ay_hi = var156
+ 
+ax_hi = var155
+ 
 alife = var154
  
 avy = var153
@@ -121,6 +125,8 @@ ay = var151
 ax = var150
  
 rand_val = var148
+ 
+ex_hi = var74
  
 elife = var56
  
@@ -146,9 +152,11 @@ star_y = var100
  
 star_x = var80
  
-temp_w = var71
+temp_w = var73
  
-ecooldown = var70
+ecooldown = var72
+ 
+temp_val_hi = var196
  
 ebul_y_hi = var192
  
