@@ -25,39 +25,39 @@
 ### Shield/Fighter System Redesign
 
 #### Player Shield System
-- [ ] Shield variable already exists as `player_shield` (starts at 99)
-- [ ] Update shield depletion on hits:
-  - [ ] Enemy bullet hit: -1 shield
-  - [ ] Enemy collision: -2 shields
+- [x] Shield variable already exists as `player_shield` (starts at 99)
+- [x] Update shield depletion on hits:
+  - [x] Enemy bullet hit: -1 shield
+  - [x] Enemy collision: -2 shields + -1 fighter (fighter destroyed)
   - [ ] Asteroid collision: -10 shields
-- [ ] Shield display already in HUD (update to use current shield value)
-- [ ] When shields reach 0:
-  - [ ] Lose one life (`player_lives--`)
-  - [ ] If lives > 0: restart level (full shields, full fighter pool)
-  - [ ] If lives = 0: game over
+- [x] Shield display already in HUD (update to use current shield value)
+- [x] When shields reach 0:
+  - [x] Lose one life (`player_lives--`)
+  - [x] If lives > 0: restart level (full shields, full fighter pool)
+  - [x] If lives = 0: game over
 
 #### Lives System
-- [ ] Lives already tracked with `player_lives` variable
-- [ ] Lives already displayed in HUD (hearts/icons)
-- [ ] Implement level restart logic:
-  - [ ] Reset shields to 99
-  - [ ] Reset fighter count to level's starting value
-  - [ ] Reset prizes (all active again)
-  - [ ] Reset player position
-  - [ ] Reset enemy positions
-- [ ] Game over when lives reach 0
+- [x] Lives already tracked with `player_lives` variable
+- [x] Lives already displayed in HUD (hearts/icons)
+- [x] Implement level restart logic:
+  - [x] Reset shields to 99
+  - [x] Reset fighter count to level's starting value
+  - [x] Reset prizes (all active again)
+  - [x] Reset player position
+  - [x] Reset enemy positions
+- [x] Game over when lives reach 0
 
 #### Fighter Pool System
-- [ ] `fighters_remaining` variable (starts based on level)
-- [ ] Display fighter count in HUD (already positioned)
-- [ ] Decrement when enemy destroyed
-- [ ] Player wins level when all fighters destroyed
+- [x] `fighters_remaining` variable (starts based on level)
+- [x] Display fighter count in HUD (already positioned)
+- [x] Decrement when enemy destroyed
+- [x] Player wins level when all fighters destroyed
 
 #### Win/Loss Conditions
-- [ ] **Level Win**: All fighters destroyed → advance to next level
-- [ ] **Level Restart**: Shields reach 0, lives > 0 → restart level
-- [ ] **Game Over**: Lives reach 0
-- [ ] Remove old score-based logic (already deprecated)
+- [x] **Level Win**: All fighters destroyed → advance to next level
+- [x] **Level Restart**: Shields reach 0, lives > 0 → restart level
+- [x] **Game Over**: Lives reach 0
+- [x] Remove old score-based logic (already deprecated)
 
 ---
 
@@ -89,38 +89,44 @@
 ## Level Progression System
 
 ### Level Variables
-- [ ] Add `current_level` variable (1-5 or more)
+- [x] Add `current_level` variable (1-5 or more)
 - [ ] Add `level_config` arrays for difficulty scaling:
-  - [ ] `level_enemy_speed[5]` - enemy movement speed per level
-  - [ ] `level_fire_cooldown[5]` - frames between shots
-  - [ ] `level_fighter_count[5]` - total fighters to destroy
-  - [ ] `level_shield_refill[5]` - partial shield restore amount
+  - [ ] `level_enemy_speed` - enemy movement speed per level **← NEXT**
+  - [ ] `level_fire_cooldown` - frames between shots **← NEXT**
+  - [x] `level_fighter_count` - total fighters to destroy (via `set_level_fighters`)
+  - [x] `level_shield_refill` - partial shield restore amount (hardcoded formula)
 
 ### Level Initialization
-- [ ] Create `init_level` subroutine
-  - [ ] Load level-specific configuration
-  - [ ] Set enemy speed from `level_enemy_speed[current_level]`
-  - [ ] Set fire cooldown from `level_fire_cooldown[current_level]`
-  - [ ] Set fighter count from `level_fighter_count[current_level]`
-  - [ ] Refill shields (partial or full based on level)
-- [ ] Reset prize locations
-- [ ] Reset asteroid position
+- [x] Create `init_level` subroutine
+  - [x] Set fighter count from current level
+  - [x] Refill shields (partial based on level)
+  - [ ] Set enemy speed from level config **← NEXT**
+  - [ ] Set fire cooldown from level config **← NEXT**
+- [x] Reset prize locations
+- [x] Reset asteroid position
 
 ### Level Transition
-- [ ] Create `level_complete` subroutine
-  - [ ] Show level complete screen
-  - [ ] Display stats (fighters destroyed, shields remaining)
-  - [ ] Partial shield refill
-  - [ ] Increment `current_level`
-  - [ ] Wait for button press to continue
-- [ ] Call `init_level` for next level
+- [x] Create `level_complete` subroutine
+  - [x] Show level complete screen
+  - [x] Partial shield refill
+  - [x] Increment `current_level`
+  - [x] Wait for button press to continue
+- [x] Call `init_level` for next level
 
 ### Difficulty Scaling (Example Values)
-- [ ] **Level 1**: Speed=1px/2frames, Cooldown=60, Fighters=20, Shield Refill=50%
-- [ ] **Level 2**: Speed=1px/frame, Cooldown=45, Fighters=40, Shield Refill=40%
-- [ ] **Level 3**: Speed=2px/frame, Cooldown=30, Fighters=60, Shield Refill=30%
-- [ ] **Level 4**: Speed=2px/frame, Cooldown=25, Fighters=80, Shield Refill=20%
-- [ ] **Level 5**: Speed=3px/frame, Cooldown=20, Fighters=99, Shield Refill=10%
+**Current Status: Fighter counts implemented, need speed/cooldown**
+- [x] **Level 1**: Fighters=20, Shield Refill=50%
+- [x] **Level 2**: Fighters=40, Shield Refill=40%
+- [x] **Level 3**: Fighters=60, Shield Refill=30%
+- [x] **Level 4**: Fighters=80, Shield Refill=20%
+- [x] **Level 5**: Fighters=99, Shield Refill=10%
+
+**TODO: Add difficulty scaling:**
+- [ ] **Level 1**: Speed=1px/2frames, Cooldown=60
+- [ ] **Level 2**: Speed=1px/frame, Cooldown=45
+- [ ] **Level 3**: Speed=2px/frame, Cooldown=30
+- [ ] **Level 4**: Speed=2px/frame, Cooldown=25
+- [ ] **Level 5**: Speed=3px/frame, Cooldown=20
 
 ---
 

@@ -96,7 +96,11 @@
    dim ecooldown = var72
    dim temp_w = var73
    
-   ; Safety Buffer 74-79
+   ; Level Difficulty Config (MOVED to avoid collision with ex_hi at var74-77)
+   dim enemy_move_mask = var220     ; Frame mask for enemy movement speed
+   dim enemy_fire_cooldown = var221 ; Cooldown frames after enemy fires
+   
+   ; Safety Buffer 76-79
    
    ; Starfield Variables (20 stars)
    ; Moved to var80+ to prevent memory corruption from scratch vars
@@ -170,15 +174,27 @@ cold_start
    P7C1=$C8: P7C2=$46: P7C3=$1C ; Title Screen (Vibrant)
 
    BACKGRND=$00
+   
+   ; Initialize difficulty settings (will be overridden by set_level_config)
+   enemy_move_mask = 1        ; Default: slow movement
+   enemy_fire_cooldown = 60   ; Default: slow fire
 
-   ; Scoring Variables
-   dim score_p = var144
-   dim score_e = var145
-   dim bcd_score = var146
+   ; Game State Variables
+   dim fighters_remaining = var144  ; Enemies left to destroy (was score_p)
+   dim player_shield = var145       ; Current shield value 0-99 (was score_e)
+   dim bcd_score = var146           ; Temporary for BCD conversion
+   dim current_level = var222       ; Current level (1-5) - moved from var166 (collision with eblife array)
+   
+   ; Prize Collection System (moved to safe zone var223-227)
+   dim prize_active0 = var223
+   dim prize_active1 = var224
+   dim prize_active2 = var225
+   dim prize_active3 = var226
+   dim prize_active4 = var227
    
    ; Cached BCD Variables (Optimization)
-   dim score_p_bcd = var157
-   dim score_e_bcd = var158
+   dim fighters_bcd = var157        ; BCD version for display (was score_p_bcd)
+   dim shield_bcd = var158          ; BCD version for display (was score_e_bcd)
    
    ; Player High Bytes
    dim px_hi = var170
@@ -220,12 +236,25 @@ init_game
     ; Initialize Lives
     player_lives = 3
     
-    ; Initialize Scores
-    score_p = 0
-    score_e = 0
-    score_p_bcd = converttobcd(0)
-    score_e_bcd = converttobcd(0)
-    dim cam_y_hi = var175
+    ; Initialize Level
+    current_level = 1
+    
+    ; Initialize Game State
+    player_shield = 99
+    shield_bcd = converttobcd(99)
+    
+    fighters_remaining = 20  ; Level 1 starting value
+    fighters_bcd = converttobcd(20)
+    
+    ; Initialize difficulty config for Level 1
+    gosub set_level_config
+    
+    ; Initialize prize system (all active)
+    prize_active0 = 1
+    prize_active1 = 1
+    prize_active2 = 1
+    prize_active3 = 1
+    prize_active4 = 1
     ; Init Camera centered on 80,90 initially? 
     ; Let's start camera at 0,0 for now to match legacy behavior
     cam_x = 0 : cam_x_hi = 0
@@ -253,7 +282,7 @@ init_game
    next
    
    alife = 0 ; Asteroid inactive
-   ecooldown = 0
+   ; ecooldown is set by set_level_config
    eblife[0] = 0 : eblife[1] = 0
    
    ; Clear enemies
@@ -391,21 +420,30 @@ skip_neg_y
     ; UI Draw Section - All using scoredigits_8_wide
     ; characterset scoredigits_8_wide
 
-    ; Hearts (Lives) as 'B' (Index 11)
+    ; Hearts (Lives) as 'F' (Index 15)
     if player_lives >= 1 then plotchars 'F' 5 10 11
     if player_lives >= 2 then plotchars 'F' 5 20 11
     if player_lives >= 3 then plotchars 'F' 5 30 11
 
-    ; Scores (Moved to 40 to clear hearts, compact)
-    plotvalue scoredigits_8_wide 3 score_p_bcd 2 40 0
+    ; Shield (Left, Green)
+    plotvalue scoredigits_8_wide 3 shield_bcd 2 40 0
     
-    ; Enemy (Right) - Red (Pal 5)
-    plotvalue scoredigits_8_wide 5 score_e_bcd 2 104 0
+    ; Fighters Remaining (Right, Red)
+    plotvalue scoredigits_8_wide 5 fighters_bcd 2 104 0
 
     ; Draw 5 Treasures (Index 10/'A')
     ; alphachars setup in header allows 'A' -> Index 10 mapping
     ; characterset is already set above
     plotchars 'ABCDE' 7 60 0
+    
+    ; DEBUG: Display config values
+    temp_v = converttobcd(enemy_move_mask)
+    plotvalue scoredigits_8_wide 2 temp_v 1 10 0
+    temp_v = converttobcd(enemy_fire_cooldown)
+    plotvalue scoredigits_8_wide 2 temp_v 2 130 0
+    ; Show current level
+    temp_v = converttobcd(current_level)
+    plotvalue scoredigits_8_wide 4 temp_v 1 75 0
 
 
     ; Use cached screen position
@@ -571,8 +609,9 @@ update_enemy
        if elife[iter] > 1 then goto update_explosion_state
        
        ; --- Movement Logic (per enemy) ---
-       ; Move every 2nd frame
-       if (frame & 1) > 0 then goto enemy_logic_done
+       ; Move based on level difficulty (mask checks frame bits)
+       temp_v = frame & enemy_move_mask
+       if temp_v > 0 then goto enemy_logic_done
        
        ; Chase Logic using temp vars
        temp_v = ex[iter]
@@ -644,8 +683,9 @@ update_explosion_state
    goto enemy_logic_done
 
 try_spawn_enemy
-       ; TESTING: Always spawn (100% rate)
-       goto do_spawn
+       ; Random spawn chance (1 in 128 per frame)
+       rand_val = frame & 127
+       if rand_val > 5 then goto enemy_logic_done
        
 do_spawn
        
@@ -727,7 +767,7 @@ spawn_ebul
    temp_v = temp_by / 2
    if temp_v > temp_bx then ebul_vx[temp_acc] = 0
    
-   ecooldown = 15 ; Reduced from 60 to allow multiple bullets on screen
+   ecooldown = enemy_fire_cooldown ; Set from level config
    return
 
 update_enemy_bullets
@@ -882,9 +922,10 @@ check_collisions
          blife[iter] = 0
          elife[temp_acc] = 18 ; Start Explosion (18 frames)
          
-         ; Increase Player Score
-         score_p = score_p + 1 : score_p_bcd = converttobcd(score_p)
-         if score_p >= 99 then goto you_win
+         ; Decrement Fighters Remaining
+         fighters_remaining = fighters_remaining - 1
+         fighters_bcd = converttobcd(fighters_remaining)
+         if fighters_remaining <= 0 then goto level_complete
          
          goto skip_enemy_coll ; Bullet used up
          
@@ -912,8 +953,18 @@ skip_bullet_coll
       
       ; Hit Player
       elife[iter] = 18 ; Explode
-      score_e = score_e + 1 : score_e_bcd = converttobcd(score_e)
-       if score_e >= 99 then goto loose_life_check
+      
+      ; Decrement Shields
+      player_shield = player_shield - 2
+      shield_bcd = converttobcd(player_shield)
+      
+      ; Also decrement fighter count (fighter destroyed)
+      fighters_remaining = fighters_remaining - 1
+      fighters_bcd = converttobcd(fighters_remaining)
+      if fighters_remaining <= 0 then goto level_complete
+      
+      ; Check for death
+      if player_shield <= 0 then goto lose_life
       
 skip_p_e
    next
@@ -987,8 +1038,10 @@ check_player_ebul
       eblife[iter] = 0
       playsfx sfx_laser 0 ; Reuse sound for hit confirm
       
-      score_e = score_e + 1 : score_e_bcd = converttobcd(score_e)
-      if score_e >= 100 then goto you_lose
+      ; Decrement Shields
+      player_shield = player_shield - 1
+      shield_bcd = converttobcd(player_shield)
+      if player_shield <= 0 then goto lose_life
       
 skip_ebul_coll
    next
@@ -1236,34 +1289,165 @@ draw_asteroid
    plotsprite asteroid_M_conv 2 ax_scr ay_scr
    return
 
-you_win
-   ;clearscreen
-   ;BACKGRND=$B4 ; Greenish Blue
-   ;drawscreen
-   ;if joy0fire0 then goto cold_start
-   ;goto you_win
+
+level_complete
+   ; All fighters destroyed - level won!
+   clearscreen
+   BACKGRND=$B4  ; Green = victory
+   ; Display level number
+   temp_v = converttobcd(current_level)
+   plotvalue scoredigits_8_wide 7 temp_v 1 75 88
+   drawscreen
+   
+   ; Wait for button release first
+level_complete_release
+   if joy0fire0 then goto level_complete_release
+   
+   ; Now wait for button press
+level_complete_wait
+   if !joy0fire0 then goto level_complete_wait
+   
+   ; Advance to next level
+   current_level = current_level + 1
+   if current_level > 5 then goto you_win_game
+   
+   ; Partial shield refill (diminishes each level)
+   temp_v = 50 - (current_level * 10)
+   if temp_v < 0 then temp_v = 0
+   player_shield = player_shield + temp_v
+   if player_shield > 99 then player_shield = 99
+   shield_bcd = converttobcd(player_shield)
+   
+   BACKGRND=$00
+   goto init_level
+
+lose_life
+   ; Shields depleted - lose a life
+   player_lives = player_lives - 1
+   if player_lives <= 0 then goto you_lose
+   
+   ; Flash effect
+   BACKGRND=$44  ; Red = death
+   clearscreen
+   drawscreen
+   
+   ; Brief pause
+   temp_v = 0
+lose_life_pause
+   temp_v = temp_v + 1
+   if temp_v < 60 then goto lose_life_pause
+   
+   BACKGRND=$00
+   goto restart_level
+
+restart_level
+   ; Reset level state after death
+   player_shield = 99
+   shield_bcd = converttobcd(99)
+   
+   ; Reset fighters based on current level
+   gosub set_level_fighters
+   fighters_bcd = converttobcd(fighters_remaining)
+   
+   ; Reset prizes
+   prize_active0 = 1
+   prize_active1 = 1
+   prize_active2 = 1
+   prize_active3 = 1
+   prize_active4 = 1
+   
+   ; Reset player position
+   px = 60 : py = 80
+   px_hi = 0 : py_hi = 0
+   cam_x = 0 : cam_x_hi = 0
+   cam_y = 0 : cam_y_hi = 0
+   
+   ; Clear enemies
+   for iter = 0 to 3
+      elife[iter] = 0
+   next
+   
+   ; Reset asteroid
+   alife = 0
+   
+   goto main_loop
+
+init_level
+   ; Initialize new level
+   gosub set_level_fighters
+   fighters_bcd = converttobcd(fighters_remaining)
+   
+   ; Set level difficulty (speed/fire rate)
+   gosub set_level_config
+   
+   ; Reset prizes
+   prize_active0 = 1
+   prize_active1 = 1
+   prize_active2 = 1
+   prize_active3 = 1
+   prize_active4 = 1
+   
+   goto restart_level
+
+set_level_fighters
+   ; Set fighter count based on level
+   if current_level = 1 then fighters_remaining = 20
+   if current_level = 2 then fighters_remaining = 40
+   if current_level = 3 then fighters_remaining = 60
+   if current_level = 4 then fighters_remaining = 80
+   if current_level >= 5 then fighters_remaining = 99
+   return
+
+set_level_config
+   ; Configure enemy speed and fire rate based on level
+   ; 
+   ; enemy_move_mask: Controls movement speed via frame masking
+   ;   Mask = 1: Move 1px per 2 frames (slow)
+   ;   Mask = 0: Move 1px per frame (fast)
+   ;
+   ; enemy_fire_cooldown: Frames between enemy shots
+   ;   Higher = slower fire rate, Lower = rapid fire
+   
+   if current_level = 1 then enemy_move_mask = 1 : enemy_fire_cooldown = 60
+   if current_level = 2 then enemy_move_mask = 1 : enemy_fire_cooldown = 45
+   if current_level = 3 then enemy_move_mask = 0 : enemy_fire_cooldown = 30
+   if current_level = 4 then enemy_move_mask = 0 : enemy_fire_cooldown = 25
+   if current_level >= 5 then enemy_move_mask = 0 : enemy_fire_cooldown = 20
+   return
+
+you_win_game
+   ; Won all levels!
+   clearscreen
+   BACKGRND=$B4  ; Green = victory
+   ; Flash celebration
+   drawscreen
+   ; Wait for button release first
+you_win_release
+   if joy0fire0 then goto you_win_release
+   
+   ; Now wait for new press
+you_win_wait
+   if !joy0fire0 then goto you_win_wait
    goto cold_start
 
 loose_life_check
-    player_lives = player_lives - 1
-    if player_lives <= 0 then goto you_lose
-    goto round_reset
+   ; Legacy - redirects to lose_life
+   goto lose_life
 
 round_reset
-    ; Reset scores but keep game going
-    score_p = 0 : score_p_bcd = converttobcd(0)
-    score_e = 0 : score_e_bcd = converttobcd(0)
-    
-    ; Short pause/flash to indicate restart?
-    clearscreen
-    drawscreen
-    
-    goto main_loop
+   ; Legacy - redirects to restart_level
+   goto restart_level
 
 you_lose
-   ;clearscreen
-   ;BACKGRND=$44 ; Red
-   ;drawscreen
-   ;if joy0fire0 then goto cold_start
-   ;goto you_lose
+   ; Game Over - no lives left
+   clearscreen
+   BACKGRND=$44  ; Red = game over
+   drawscreen
+   ; Wait for button release first
+you_lose_release
+   if joy0fire0 then goto you_lose_release
+   
+   ; Now wait for new press
+you_lose_wait
+   if !joy0fire0 then goto you_lose_wait
    goto cold_start

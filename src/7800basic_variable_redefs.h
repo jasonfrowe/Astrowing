@@ -115,8 +115,6 @@ sc1 = var140
  
 cam_y_hi = var175
  
-cam_y_hi = var175
- 
 cam_y = var174
  
 cam_x_hi = var173
@@ -127,15 +125,27 @@ py_hi = var171
  
 px_hi = var170
  
-score_e_bcd = var158
+shield_bcd = var158
  
-score_p_bcd = var157
+fighters_bcd = var157
+ 
+prize_active4 = var227
+ 
+prize_active3 = var226
+ 
+prize_active2 = var225
+ 
+prize_active1 = var224
+ 
+prize_active0 = var223
+ 
+current_level = var222
  
 bcd_score = var146
  
-score_e = var145
+player_shield = var145
  
-score_p = var144
+fighters_remaining = var144
  
 a_on = var213
  
@@ -213,6 +223,10 @@ star_c = var120
 star_y = var100
  
 star_x = var80
+ 
+enemy_fire_cooldown = var221
+ 
+enemy_move_mask = var220
  
 temp_w = var73
  
