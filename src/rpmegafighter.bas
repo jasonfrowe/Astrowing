@@ -152,7 +152,7 @@ cold_start
    ; Palette Setup
    P0C1=$26: P0C2=$24: P0C3=$04 ; Background/UI
    P1C1=$C2: P1C2=$C6: P1C3=$CA ; Player Bullets (Green)
-   P2C1=$94: P2C2=$98: P2C3=$9C ; Asteroids (Blue-Grey)
+   P2C1=$04: P2C2=$08: P2C3=$0C ; Asteroids (Greys)
    P3C1=$B4: P3C2=$46: P3C3=$1C ; Enemy (Green, Red, Yellow)
    P4C1=$08: P4C2=$0C: P4C3=$0F ; Stars
    P5C1=$34: P5C2=$86: P5C3=$0A ; Spaceship
@@ -679,7 +679,7 @@ skip_ey_move
 skip_firing_chance
        goto enemy_logic_done
 
-   P2C1=$04: P2C2=$08: P2C3=$0C ; Asteroids (Greys)
+
    
 update_explosion_state
    elife[iter] = elife[iter] - 1
