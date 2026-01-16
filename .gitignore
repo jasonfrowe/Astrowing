@@ -47,3 +47,8 @@ desktop.ini
 *.bak
 *.tmp
 *~
+
+# Junk
+junk/
+
+samples/

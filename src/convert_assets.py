@@ -177,7 +177,16 @@ def convert_to_atari_7800(filename):
                 
                 out_name = f"{base}_{i:02d}_conv{ext}"
                 crop.save(out_name, optimize=False, bits=2, transparency=0)
+                out_name = f"{base}_{i:02d}_conv{ext}"
+                crop.save(out_name, optimize=False, bits=2, transparency=0)
                 print(f"Saved frame {i}: {out_name}")
+        elif "title_screen" in filename:
+             print(f"Processing title screen {filename} ({target_w}x{target_h})...")
+             # Save full converted image for incbanner
+             out_name = f"{base}_conv{ext}"
+             new_img.save(out_name, optimize=False, bits=2, transparency=0)
+             print(f"Saved full converted title screen: {out_name}")
+
         else:
             out_name = f"{base}_conv{ext}"
             
@@ -200,7 +209,8 @@ if __name__ == "__main__":
         "src/asteroid_M.png",
         "src/asteroid_S.png",
         "src/fighter_explode.png",
-        "src/heart.png"
+        "src/heart.png",
+        "src/title_screen.png"
     ]
     for f in files:
         if os.path.exists(f):

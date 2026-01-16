@@ -30,12 +30,15 @@
    incgraphic fighter_explode_05_conv.png
    incgraphic fighter_explode_06_conv.png
    incgraphic fighter_explode_07_conv.png
-   incgraphic asteroid_M_conv.png
-   incgraphic tileset_blanks.png 160A 3 0 1 2
-   incgraphic scoredigits_8_wide.png
-   incgraphic heart_conv.png
+   incbanner title_screen_conv.png 160A 0 1 2 3
    
-   characterset tileset_blanks
+   incgraphic asteroid_M_conv.png
+   
+   ; Define custom mapping for scoredigits (0-9 + A-F)
+   alphachars '0123456789ABCDEF'
+   incgraphic scoredigits_8_wide.png 160A
+   
+   characterset scoredigits_8_wide
 
    ; ---- Dimensions ----
    dim px = var0
@@ -147,44 +150,71 @@
 
 cold_start
    ; Palette Setup
-   P0C1=$26: P0C2=$24: P0C3=$04
+   P0C1=$26: P0C2=$24: P0C3=$04 ; Background/UI
    P1C1=$C2: P1C2=$C6: P1C3=$CA ; Player Bullets (Green)
-   P2C1=$94: P2C2=$98: P2C3=$9C ; Asteroids (Blue for debug distinction)
+   P2C1=$94: P2C2=$98: P2C3=$9C ; Asteroids (Blue-Grey)
    P3C1=$B4: P3C2=$46: P3C3=$1C ; Enemy (Green, Red, Yellow)
-   P4C1=$08: P4C2=$0C: P4C3=$0F ; Stars (Dim Grey, Light Grey, White)
+   P4C1=$08: P4C2=$0C: P4C3=$0F ; Stars
    P5C1=$34: P5C2=$86: P5C3=$0A ; Spaceship
    P6C1=$42: P6C2=$46: P6C3=$4A ; Enemy Bullets (Red)
-   
-   BACKGRND=$00 ; Set Background to Black
+   P7C1=$C8: P7C2=$46: P7C3=$1C ; Title Screen (Vibrant)
 
-    ; Initialize Variables
-    px = 80             ; Low byte (0-255)
-    dim px_hi = var170  ; High byte (0-4 for 1024)
-    px_hi = 0
-    py = 90
-    dim py_hi = var171
-    py_hi = 0
+   BACKGRND=$00
+
+   ; Scoring Variables
+   dim score_p = var144
+   dim score_e = var145
+   dim bcd_score = var146
+   
+   ; Cached BCD Variables (Optimization)
+   dim score_p_bcd = var157
+   dim score_e_bcd = var158
+   
+   ; Player High Bytes
+   dim px_hi = var170
+   dim py_hi = var171
+   
+   ; Camera Vars
+   dim cam_x = var172
+   dim cam_x_hi = var173
+   dim cam_y = var174
+   dim cam_y_hi = var175
+
+title_loop
+    clearscreen
+    ; Reset critical sprite state to hide game objects
+    alife=0
+    for iter=0 to 3
+       elife[iter]=0
+    next
     
-    ; Scoring Variables
-    dim score_p = var144
-    dim score_e = var145
-    dim bcd_score = var146
+    ; Draw Title Graphic (Banner)
+    plotbanner title_screen_conv 7 0 46
+    ; characterset scoredigits_8_wide
+    plotchars 'ABCDE' 7 60 3
     
-    ; Cached BCD Variables (Optimization)
-    dim score_p_bcd = var157
-    dim score_e_bcd = var158
+    drawscreen
+    
+    if joy0fire0 then goto init_game
+    goto title_loop
+
+init_game
+     ; Initialize Variables (Reset)
+     px = 60             ; Low byte (0-255)
+     px_hi = 0
+     py = 80
+     py_hi = 0
+     
+     cam_x = 0 : cam_x_hi = 0 : cam_y = 0 : cam_y_hi = 0
+    
+    ; Initialize Lives
+    player_lives = 3
     
     ; Initialize Scores
     score_p = 0
     score_e = 0
     score_p_bcd = converttobcd(0)
     score_e_bcd = converttobcd(0)
-    player_lives = 3
-    
-    ; Camera Vars
-    dim cam_x = var172
-    dim cam_x_hi = var173
-    dim cam_y = var174
     dim cam_y_hi = var175
     ; Init Camera centered on 80,90 initially? 
     ; Let's start camera at 0,0 for now to match legacy behavior
@@ -347,17 +377,27 @@ skip_neg_y
     ; ---- Lives Display (Top Left) ----
     ; Using Palette 5 (Red) per user request
     ; Unrolled Loop for 3 Hearts (Fast)
-    if player_lives >= 1 then plotsprite heart_conv 5 10 10
-    if player_lives >= 2 then plotsprite heart_conv 5 20 10
-    if player_lives >= 3 then plotsprite heart_conv 5 30 10
+    ; UI Draw Section - All using scoredigits_8_wide
+    ; characterset scoredigits_8_wide
 
-    ; Scores (Moved to 45 to clear hearts)
+    ; Hearts (Lives) as 'B' (Index 11)
+    if player_lives >= 1 then plotchars 'F' 5 10 11
+    if player_lives >= 2 then plotchars 'F' 5 20 11
+    if player_lives >= 3 then plotchars 'F' 5 30 11
+
+    ; Scores (Moved to 40 to clear hearts, compact)
     bcd_score = converttobcd(score_p)
-    plotvalue scoredigits_8_wide 3 bcd_score 2 45 10
+    plotvalue scoredigits_8_wide 3 bcd_score 2 40 0
     
     ; Enemy (Right) - Red (Pal 5)
     bcd_score = converttobcd(score_e)
-    plotvalue scoredigits_8_wide 5 bcd_score 2 130 10
+    plotvalue scoredigits_8_wide 5 bcd_score 2 104 0
+
+    ; Draw 5 Treasures (Index 10/'A')
+    ; alphachars setup in header allows 'A' -> Index 10 mapping
+    ; characterset is already set above
+    plotchars 'ABCDE' 7 60 0
+
 
     ; Calculate Player Screen Position (relative to camera)
     temp_v = px - cam_x
