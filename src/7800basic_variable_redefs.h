@@ -137,6 +137,22 @@ score_e = var145
  
 score_p = var144
  
+a_on = var213
+ 
+e_on = var209
+ 
+ay_scr = var208
+ 
+ax_scr = var207
+ 
+ey_scr = var203
+ 
+ex_scr = var199
+ 
+py_scr = var198
+ 
+px_scr = var197
+ 
 blife3 = var37
  
 blife2 = var36 
