@@ -56,3 +56,6 @@ archive/
 graphics/
 images/
 cfg/
+
+CMakePresets.json
+CMakeUserPresets.json   
