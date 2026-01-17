@@ -89,10 +89,10 @@
    dim eblife  = $2564 ; 164-167
 
    ; High Byte Arrays for Bullets (World Coords)
-   dim bul_x_hi = $2580 ; 180-183
-   dim bul_y_hi = $2584 ; 184-187
-   dim ebul_x_hi = $2588 ; 188-191
-   dim ebul_y_hi = $258C ; 192-195
+   ; dim bul_x_hi = $2580 ; Removed (Unused)
+   ; dim bul_y_hi = $2584 ; Removed (Unused)
+   ; dim ebul_x_hi = $2588 ; Removed (Unused)
+   ; dim ebul_y_hi = $258C ; Removed (Unused)
    dim temp_val_hi = $2590
    dim ecooldown = var72
    dim temp_w = var73
@@ -210,11 +210,8 @@ cold_start
    dim px_hi = $2570
    dim py_hi = $2571
    
-   ; Camera Vars
-   dim cam_x = $2572
-   dim cam_x_hi = $2573
-   dim cam_y = $2574
-   dim cam_y_hi = $2575
+   ; Camera Removed
+   ; Global Coords Only
 
 title_loop
     clearscreen
@@ -246,12 +243,13 @@ init_game
      gosub StopMusic
      music_ptr_hi = 0 ; Force reset on next PlayMusic call
      ; Initialize Variables (Reset)
-     px = 60             ; Low byte (0-255)
-     px_hi = 0
-     py = 80
-     py_hi = 0
+     ; Initialize Player at (592, 602) -> (512+80, 512+90)
+     ; Center of 1024x1024 World (Segment 2)
+     px = 80 : px_hi = 2
+     py = 90 : py_hi = 2
      
-     cam_x = 0 : cam_x_hi = 0 : cam_y = 0 : cam_y_hi = 0
+     
+     ; Camera removed (Player Centric)
     
     ; Initialize Lives
     player_lives = 3
@@ -277,8 +275,8 @@ init_game
     prize_active4 = 1
     ; Init Camera centered on 80,90 initially? 
     ; Let's start camera at 0,0 for now to match legacy behavior
-    cam_x = 0 : cam_x_hi = 0
-    cam_y = 0 : cam_y_hi = 0
+     ; Init Done
+    ; Init Done
     
     ; Init Physics (Prevent Jitter)
     vx_p = 0 : vx_m = 0 : acc_mx = 0
@@ -339,43 +337,26 @@ main_loop
    gosub cycle_stars
    
    ; ---- Physics Update ----
-   ; Scaling factor 64 (6 bits fraction)
-   ; X Axis
-   temp_v = vx_p - vx_m
-   
-   ; 16-bit Add: px = px + temp_v (signed scale?)
-   ; Current Logic: temp_v is "sub-pixels" effectively.
-   ; Let's assume temp_v is ~ 32 = 0.5px?
-   ; Old logic: px = px + (temp_v / 64)
-   ; New Logic: We want to accumulate sub-pixels.
-   ; We'll treat px/px_hi as 8.8 Fixed Point? No, px is integer pixel.
-   ; ---- Physics Update ----
+
+   ; ---- Physics Update (Shifting World) ----
+   ; Calculate Global Scroll Deltas (temp_bx, temp_by)
+   temp_bx = 0
+   temp_by = 0
+
    ; X Axis
    ; Positive
    temp_v = vx_p + rx
    rx = temp_v & 63
    temp_w = temp_v / 64
    
-   if temp_w = 0 then goto skip_pos_x
-      px = px + temp_w
-      if px < temp_w then px_hi = px_hi + 1
-skip_pos_x
-
+   if temp_w > 0 then temp_bx = temp_w
+   
    ; Negative
-   ; Using dedicated accumulator
    temp_v = vx_m + acc_mx
    acc_mx = temp_v & 63
    temp_w = temp_v / 64
    
-   if temp_w = 0 then goto skip_neg_x
-      temp_v = px
-      px = px - temp_w
-      if px > temp_v then px_hi = px_hi - 1
-skip_neg_x
-
-   ; Wrap X
-   if px_hi >= 4 then px_hi = 0
-   if px_hi = 255 then px_hi = 3
+   if temp_w > 0 then temp_bx = 0 - temp_w ; Signed result
    
    ; Y Axis
    ; Positive (Down)
@@ -383,25 +364,18 @@ skip_neg_x
    ry = temp_v & 63
    temp_w = temp_v / 64
    
-   if temp_w = 0 then goto skip_pos_y
-      py = py + temp_w
-      if py < temp_w then py_hi = py_hi + 1
-skip_pos_y
+   if temp_w > 0 then temp_by = temp_w
    
-   ; Negative (Up) (using temp_by accumulator)
+   ; Negative (Up)
    temp_v = vy_m + acc_my
    acc_my = temp_v & 63
    temp_w = temp_v / 64
    
-   if temp_w = 0 then goto skip_neg_y
-      temp_v = py
-      py = py - temp_w
-      if py > temp_v then py_hi = py_hi - 1
-skip_neg_y
+   if temp_w > 0 then temp_by = 0 - temp_w
+   
+   ; Apply Shift to Universe
+   if temp_bx <> 0 || temp_by <> 0 then gosub shift_universe
 
-   ; Wrap Y
-   if py_hi >= 4 then py_hi = 0
-   if py_hi = 255 then py_hi = 3
 
    ; ---- Bullet Update ----
    gosub update_bullets
@@ -426,7 +400,7 @@ skip_neg_y
    ; if px > 150 then px = 150 ...
 
    ; ---- Camera Update ----
-   gosub update_camera
+
    gosub update_render_coords
 
     ; ---- Draw ----
@@ -456,13 +430,36 @@ skip_neg_y
     ; characterset is already set above
     plotchars 'ABCDE' 7 60 0
     
-    ; DEBUG: Uncomment to display config values during testing
-    ; temp_v = converttobcd(enemy_move_mask)
-    ; plotvalue scoredigits_8_wide 2 temp_v 1 10 0
-    ; temp_v = converttobcd(enemy_fire_cooldown)
-    ; plotvalue scoredigits_8_wide 2 temp_v 2 130 0
-    ; temp_v = converttobcd(current_level)
-    ; plotvalue scoredigits_8_wide 4 temp_v 1 75 0
+    ; DEBUG: Display World Coords Comparison (Player vs Enemy 0)
+    ; Zone 1: PxHi ExHi[0] PyHi EyHi[0]
+    ; a = converttobcd(px_hi)
+    ; plotvalue scoredigits_8_wide 2 a 1 10 9
+    
+    ; b = converttobcd(ex_hi) ; ex_hi[0]
+    ; plotvalue scoredigits_8_wide 2 b 1 40 9
+    
+    ; c = converttobcd(py_hi)
+    ; plotvalue scoredigits_8_wide 2 c 1 80 9
+    
+    ; d = converttobcd(ey_hi) ; ey_hi[0]
+    ; plotvalue scoredigits_8_wide 2 d 1 110 9
+
+    ; Row 2: Low Bytes (Px Ex[0] Py Ey[0])
+    ; v = px 
+    ; e   = converttobcd(v)
+    ; plotvalue scoredigits_8_wide 3 e 2 10 10
+    
+    ; v = ex
+    ; f = converttobcd(v)
+    ; plotvalue scoredigits_8_wide 3 f 2 40 10
+    
+    ; w = py
+    ; e = converttobcd(w)
+    ; plotvalue scoredigits_8_wide 3 e 2 80 10
+    
+    ; w = ey
+    ; f = converttobcd(w)
+    ; plotvalue scoredigits_8_wide 3 f 2 110 10
 
 
     ; Use cached screen position
@@ -570,12 +567,10 @@ fire_bullet
 spawn_bullet
    blife[iter] = 60 ; Last 60 frames ~ 1 sec
    ; Screen Space Bullet Spawn (Tie to Screen)
-   ; Center Bullet (Px+7, Py+7) relative to Camera
-   temp_v = px - cam_x
-   bul_x[iter] = temp_v + 7
+   ; Center Bullet (Px + 8, Py + 8) -> Center of 16x16 sprite
    
-   temp_w = py - cam_y
-   bul_y[iter] = temp_w + 7
+   bul_x[iter] = px 
+   bul_y[iter] = py
    
    ; No Hi Bytes needed for Screen Space Bullets
 
@@ -648,12 +643,36 @@ update_enemy
        rand_val = temp_v ; Store Target Index in temp var
        
        ; Calculate Target X with Offset using Target Index
+       ; Use 16-bit aware targeting: check high bytes first
        temp_w = px
        temp_v = rand_val & 1
        if temp_v > 0 then temp_w = temp_w + 30 else temp_w = temp_w - 30
        
+       ; Check if in same X segment (high bytes match)
+       if px_hi = ex_hi[iter] then goto same_x_segment
+       
+       ; Different segments - determine direction from high byte difference
+       temp_acc = px_hi - ex_hi[iter]
+       ; Handle 4-segment wrap: 
+       ; Right direction: 1, 2 (wrap?), no.. 1 or 253 (-3) which is 3->0
+       ; Left direction: 255 (-1), 254 (-2), 3 (0->3)
+       
+       if temp_acc = 1 then goto want_right_hb
+       if temp_acc = 2 then goto want_right_hb ; Chase right if far
+       if temp_acc = 253 then goto want_right_hb ; 3 -> 0 Wrap
+       
+       goto want_left
+       
+want_right_hb
+       ; High bytes say go right
+       temp_acc = 64  ; Positive delta to trigger right movement
+       goto do_x_accel
+
+same_x_segment
+       ; Same segment - use low byte difference
        temp_acc = temp_w - ex[iter]
        
+do_x_accel
        ; Accelerate every 4th frame (mask 3)
        if (frame & 3) > 0 then goto skip_accel
        
@@ -667,12 +686,36 @@ want_left
        if evx[iter] > 253 || evx[iter] <= 3 then evx[iter] = evx[iter] - 1
 
 check_y_accel
-       ; Y Acceleration with Offset using Target Index (Corrected for Aspect Ratio)
+       ; Y Acceleration with Offset using Target Index (16-bit aware)
        temp_w = py
        temp_v = rand_val & 2
        if temp_v > 0 then temp_w = temp_w + 55 else temp_w = temp_w - 55
        
+       ; Check if in same Y segment (high bytes match)
+       if py_hi = ey_hi[iter] then goto same_y_segment
+       
+       ; Different segments - determine direction from high byte difference
+       temp_acc = py_hi - ey_hi[iter]
+       ; Handle 4-segment wrap: if diff is 1-2, go down; if diff is 254-255 (or 3), go up
+       ; Down: 1, 2, 253 (3->0)
+       ; Up: 255 (-1), 254 (-2), 3 (0->3)
+       
+       if temp_acc = 1 then goto want_down_hb
+       if temp_acc = 2 then goto want_down_hb
+       if temp_acc = 253 then goto want_down_hb
+       
+       goto want_up
+       
+want_down_hb
+       ; High bytes say go down
+       temp_acc = 64  ; Positive delta to trigger down movement
+       goto do_y_accel
+
+same_y_segment
+       ; Same segment - use low byte difference
        temp_acc = temp_w - ey[iter]
+       
+do_y_accel
        if temp_acc >= 128 then goto want_up
        ; Want Down (Pos Y)
        if evy[iter] < 3 || evy[iter] >= 253 then evy[iter] = evy[iter] + 1
@@ -695,9 +738,9 @@ apply_neg_x
        ex[iter] = ex[iter] - temp_w
        if ex[iter] > temp_acc then ex_hi[iter] = ex_hi[iter] - 1
 apply_x_done
-       ; Wrap World X
-       if ex_hi[iter] >= 4 then ex_hi[iter] = 0
+       ; Wrap World X (4 segments = 1024)
        if ex_hi[iter] = 255 then ex_hi[iter] = 3
+       if ex_hi[iter] >= 4 then ex_hi[iter] = 0
 
        ; Apply Velocity Y
        temp_v = evy[iter]
@@ -712,6 +755,9 @@ apply_neg_y
        ey[iter] = ey[iter] - temp_w
        if ey[iter] > temp_acc then ey_hi[iter] = ey_hi[iter] - 1
 apply_y_done
+       ; Wrap World Y (4 segments = 1024)
+       if ey_hi[iter] = 255 then ey_hi[iter] = 3
+       if ey_hi[iter] >= 4 then ey_hi[iter] = 0
        
        ; Firing Chance (Global Cooldown)
        if ecooldown > 0 then goto skip_firing_chance
@@ -743,7 +789,8 @@ do_spawn
        evx[iter] = 0 : evy[iter] = 0 ; Reset velocity
        
        ; Set High Byte to Camera High Byte (Spawn locally initially)
-       ex_hi[iter] = cam_x_hi
+       ; Set High Byte to Px High Byte (Locally)
+       ex_hi[iter] = px_hi
        
        ; Randomize Side (L/R) using rand
        temp_v = rand
@@ -751,27 +798,54 @@ do_spawn
        goto spawn_right
 
 spawn_left
-       ; Spawn Left (CamX - 10)
-       temp_w = cam_x
-       temp_v = temp_w - 10
+       ; Spawn Left (Px - 90)
+       ; 80 center + 10 margin
+       temp_v = px - 90
        ex[iter] = temp_v
-       if temp_v > temp_w then ex_hi[iter] = ex_hi[iter] - 1 ; Underflow
+       if temp_v > px then ex_hi[iter] = ex_hi[iter] - 1 ; Underflow
        if ex_hi[iter] = 255 then ex_hi[iter] = 3 ; Wrap Down
        goto spawn_set_y
 
 spawn_right
-       ; Spawn Right (CamX + 170)
-       temp_v = cam_x + 170
+       ; Spawn Right (Px + 90)
+       temp_v = px + 90
        ex[iter] = temp_v
-       if temp_v < 170 then ex_hi[iter] = ex_hi[iter] + 1 ; Overflow
+       if temp_v < px then ex_hi[iter] = ex_hi[iter] + 1 ; Overflow
        if ex_hi[iter] >= 4 then ex_hi[iter] = 0 ; Wrap Up
+       if ex_hi[iter] = 255 then ex_hi[iter] = 3 ; Wrap Down (Safety)
 
 spawn_set_y
-       ; Random Y (10 to 180) using rand
+       ; Random Y (10 to 180) -> Screen Space
+       ; Convert to World: Ey = Py + (ScreenY - 90)
        temp_v = rand
        if temp_v < 10 then temp_v = 10
-       if temp_v > 90 then temp_v = temp_v + 80
-       ey[iter] = temp_v
+       if temp_v > 180 then temp_v = 180
+       
+       ; Calculate Offset from Center (90)
+       temp_acc = temp_v - 90
+       
+       ; Default to same High Byte
+       ey_hi[iter] = py_hi
+       
+       ; Add Offset to Py
+       if temp_acc < 128 then goto add_pos_offset
+       
+       ; Negative Offset (ScreenY < 90)
+       ; ey = py + neg_offset
+       temp_w = py + temp_acc
+       ey[iter] = temp_w
+       if temp_w > py then ey_hi[iter] = ey_hi[iter] - 1 ; Borrow
+       goto check_wrap_y_spawn
+
+add_pos_offset
+       ; Positive Offset (ScreenY > 90)
+       temp_w = py + temp_acc
+       ey[iter] = temp_w
+       if temp_w < py then ey_hi[iter] = ey_hi[iter] + 1 ; Carry
+
+check_wrap_y_spawn
+       if ey_hi[iter] = 255 then ey_hi[iter] = 3
+       if ey_hi[iter] >= 4 then ey_hi[iter] = 0
        
 enemy_logic_done
     next
@@ -886,9 +960,9 @@ ast_move_pos_x
    if ax < temp_v then ax_hi = ax_hi + 1
 
 ast_x_done
-   ; Wrap X (0-3)
-   if ax_hi >= 4 then ax_hi = 0
+   ; Wrap X (0-3, 4 segments = 1024)
    if ax_hi = 255 then ax_hi = 3
+   if ax_hi >= 4 then ax_hi = 0
 
    ; Y Axis
    temp_v = avy
@@ -906,9 +980,9 @@ ast_move_pos_y
    if ay < temp_v then ay_hi = ay_hi + 1
 
 ast_y_done
-   ; Wrap Y (0-3)
-   if ay_hi >= 4 then ay_hi = 0
+   ; Wrap Y (0-3, 4 segments = 1024)
    if ay_hi = 255 then ay_hi = 3
+   if ay_hi >= 4 then ay_hi = 0
    
    return
 
@@ -925,18 +999,27 @@ spawn_asteroid
    if rand_val = 2 then ax = 80 : ay = 5
    if rand_val = 3 then ax = 80 : ay = 175
    
-   ; Convert to World Coordinates
-   temp_v = ax + cam_x
-   ax = temp_v
-   ax_hi = cam_x_hi
-   if ax < cam_x then ax_hi = ax_hi + 1 ; Carry Corrected
-   if ax_hi >= 4 then ax_hi = 0 ; Wrap Safe
-   
-   temp_v = ay + cam_y
-   ay = temp_v
-   ay_hi = cam_y_hi
-   if ay < cam_y then ay_hi = ay_hi + 1 ; Carry Corrected
-   if ay_hi >= 4 then ay_hi = 0
+    ; Convert to World Coordinates
+    ; AX starts as Screen X (5, 155, 80). Center is 80.
+    ; Offset = AX - 80.
+    ; WorldX = Px + Offset.
+    temp_acc = ax - 80
+    temp_v = px + temp_acc
+    ax = temp_v
+    ax_hi = px_hi
+    if temp_acc >= 128 then if temp_v > px then ax_hi = ax_hi - 1
+    if temp_acc < 128 then if temp_v < px then ax_hi = ax_hi + 1
+    if ax_hi >= 4 then ax_hi = 0
+    
+    ; AY starts as Screen Y await (90, 5, 175). Center is 90.
+    ; Offset = AY - 90.
+    temp_acc = ay - 90
+    temp_v = py + temp_acc
+    ay = temp_v
+    ay_hi = py_hi
+    if temp_acc >= 128 then if temp_v > py then ay_hi = ay_hi - 1
+    if temp_acc < 128 then if temp_v < py then ay_hi = ay_hi + 1
+    if ay_hi >= 4 then ay_hi = 0
    
    ; Random Velocity (Slow drift)
    ; 1 or -1 (255)
@@ -1125,27 +1208,28 @@ init_stars
 
 draw_stars
    ; Unrolled loop for performance (4 stars)
-   temp_v = star_x[0] - cam_x
+   ; Star X is world coordinate. Screen X = StarX - PX + 80
+   temp_v = star_x[0] - px + 80
    if temp_v > 165 then goto skip_s0
-   temp_w = star_y[0] - cam_y
+   temp_w = star_y[0] - py + 90
    if temp_w > 200 then goto skip_s0
    plotsprite bullet_conv 4 temp_v temp_w
 skip_s0
-   temp_v = star_x[1] - cam_x
+   temp_v = star_x[1] - px + 80
    if temp_v > 165 then goto skip_s1
-   temp_w = star_y[1] - cam_y
+   temp_w = star_y[1] - py + 90
    if temp_w > 200 then goto skip_s1
    plotsprite bullet_conv 4 temp_v temp_w
 skip_s1
-   temp_v = star_x[2] - cam_x
+   temp_v = star_x[2] - px + 80
    if temp_v > 165 then goto skip_s2
-   temp_w = star_y[2] - cam_y
+   temp_w = star_y[2] - py + 90
    if temp_w > 200 then goto skip_s2
    plotsprite bullet_conv 4 temp_v temp_w
 skip_s2
-   temp_v = star_x[3] - cam_x
+   temp_v = star_x[3] - px + 80
    if temp_v > 165 then goto skip_s3
-   temp_w = star_y[3] - cam_y
+   temp_w = star_y[3] - py + 90
    if temp_w > 200 then goto skip_s3
    plotsprite bullet_conv 4 temp_v temp_w
 skip_s3
@@ -1167,100 +1251,205 @@ cycle_stars
    if cycle_state = 2 then P4C1=$0F: P4C2=$08: P4C3=$0C
    return
 
-update_camera
-   ; Simple Center Lock
-   ; cam_x = px - 80
-   
-   temp_v = px
-   cam_x = px - 80
-   cam_x_hi = px_hi
-   if cam_x > temp_v then cam_x_hi = cam_x_hi - 1 ; Borrow
-   
-   ; Wrap Cam X
-   if cam_x_hi = 255 then cam_x_hi = 3
-   if cam_x_hi >= 4 then cam_x_hi = 0
 
-   ; cam_y = py - 90
-   temp_v = py
-   cam_y = py - 90
-   cam_y_hi = py_hi
-   if cam_y > temp_v then cam_y_hi = cam_y_hi - 1
-   
-   ; Wrap Cam Y
-   if cam_y_hi = 255 then cam_y_hi = 3
-   if cam_y_hi >= 4 then cam_y_hi = 0
-   
-   return
 
 update_render_coords
-   ; 1. Player
-   px_scr = px - cam_x
-   py_scr = py - cam_y
+   ; Simple Window Logic with Edge Handling (Hi=1 and Hi=2)
+   ; Player (Center) is at Hi=2.
+   ; Neighbors: Hi=1 (Left/Top) and Hi=2 (Right/Bottom/Center)
    
-   ; 2. Enemies
+   px_scr = 80 - 4
+   py_scr = 90 - 8
+   
    for iter = 0 to 3
-      if elife[iter] = 0 then e_on[iter] = 0 : goto next_r_enemy
+      if elife[iter] = 0 then e_on[iter] = 0 : goto next_r_simple
       
-      ; High Byte Visibility Check
-      if ex_hi[iter] = cam_x_hi then goto e_r_on_x
-      temp_val_hi = ex_hi[iter] - cam_x_hi
-      if temp_val_hi = 3 then temp_val_hi = 255
-      if temp_val_hi = 253 then temp_val_hi = 1
-      if temp_val_hi > 1 && temp_val_hi < 255 then e_on[iter] = 0 : goto next_r_enemy
-e_r_on_x
-      temp_v = ex[iter] - cam_x
-      ; Screen is 160 wide, enemy is ~8 wide
-      ; Valid range: 0-167 (screen + margin)
-      ; Wrap-around range: 240-255 (-16 to -1, should be visible)
-      ; Cull range: 168-239
-      if temp_v > 167 then if temp_v < 240 then e_on[iter] = 0 : goto next_r_enemy
-      
-      temp_w = ey[iter] - cam_y
-      ; Screen is 192 high, enemy is ~8 high
-      ; Valid range: 0-199 (screen + margin)
-      ; Wrap-around range: 240-255 (-16 to -1, should be visible)
-      ; Cull range: 200-239
-      if temp_w > 199 then if temp_w < 240 then e_on[iter] = 0 : goto next_r_enemy
+      ; --- X Axis --- 
+      if ex_hi[iter] = 2 then goto check_x_center
+      if ex_hi[iter] = 1 then goto check_x_left
+      e_on[iter] = 0 : goto next_r_simple
 
-      ex_scr[iter] = temp_v
-      ey_scr[iter] = temp_w
+check_x_center
+      ; Hi=2 (512+): Use Low Byte directly.
+      ex_scr[iter] = ex[iter]
+      if ex_scr[iter] > 170 then e_on[iter] = 0 : goto next_r_simple
+      goto x_ok
+
+check_x_left
+      ; Hi=1 (..511): Use Low Byte. Must be escaping left (255..240)
+      ex_scr[iter] = ex[iter]
+      if ex_scr[iter] < 240 then e_on[iter] = 0 : goto next_r_simple
+
+x_ok
+      
+      ; --- Y Axis ---
+      if ey_hi[iter] = 2 then goto check_y_center
+      if ey_hi[iter] = 1 then goto check_y_top
+      e_on[iter] = 0 : goto next_r_simple
+
+check_y_center
+      ; Hi=2: Center/Bottom
+      ey_scr[iter] = ey[iter]
+      if ey_scr[iter] > 210 then e_on[iter] = 0 : goto next_r_simple
+      goto y_ok
+
+check_y_top
+      ; Hi=1: Top Edge
+      ey_scr[iter] = ey[iter]
+      if ey_scr[iter] < 240 then e_on[iter] = 0 : goto next_r_simple
+
+y_ok
+      
       e_on[iter] = 1
-next_r_enemy
+next_r_simple
    next
    
-   ; 3. Asteroid
    if alife = 0 then a_on = 0 : return
-   if ax_hi = cam_x_hi then goto a_r_on_x
-   temp_val_hi = ax_hi - cam_x_hi
-   if temp_val_hi = 3 then temp_val_hi = 255
-   if temp_val_hi = 253 then temp_val_hi = 1
-   if temp_val_hi > 1 && temp_val_hi < 255 then a_on = 0 : return
-a_r_on_x
-   temp_v = ax - cam_x
-   ; Screen is 160 wide, asteroid is ~16 wide
-   ; Valid range: 0-175 (screen + margin)
-   ; Wrap-around range: 240-255 (-16 to -1, should be visible)
-   ; Cull range: 176-239
-   if temp_v > 175 then if temp_v < 240 then a_on = 0 : return
    
-   temp_w = ay - cam_y
-   ; Screen is 192 high, asteroid is ~16 high
-   ; Valid range: 0-207 (screen + margin)
-   ; Wrap-around range: 240-255 (-16 to -1, should be visible)
-   ; Cull range: 208-239
-   if temp_w > 207 then if temp_w < 240 then a_on = 0 : return
+   ; --- Asteroid X ---
+   if ax_hi = 2 then goto ax_center
+   if ax_hi = 1 then goto ax_left
+   a_on = 0 : return
 
-   ax_scr = temp_v
-   ay_scr = temp_w
+ax_center
+   ax_scr = ax
+   if ax_scr > 176 then a_on = 0 : return
+   goto ax_ok
+   
+ax_left
+   ax_scr = ax
+   if ax_scr < 240 then a_on = 0 : return
+
+ax_ok
+
+   ; --- Asteroid Y ---
+   if ay_hi = 2 then goto ay_center
+   if ay_hi = 1 then goto ay_top
+   a_on = 0 : return
+
+ay_center
+   ay_scr = ay
+   if ay_scr > 210 then a_on = 0 : return
+   goto ay_valid
+
+ay_top
+   ay_scr = ay
+   if ay_scr < 240 then a_on = 0 : return
+
+ay_valid
+   
    a_on = 1
    return
-
-   ; Y Axis Deadzone (70 - 110)
-   ; Note: py and cam_y are Low Bytes. Need Hi Byte support? Yes.
-   ; But screen is only 192 high. World is 1024.
    
    ; Just use primitive following for now.
    ; screen_y = py - cam_y (approx)
+   return
+
+shift_universe
+   ; temp_bx = Scroll X, temp_by = Scroll Y
+   
+   ; --- X Shift ---
+   if temp_bx = 0 then goto skip_shift_x
+   
+   ; Enemies
+   for iter = 0 to 3
+      if elife[iter] = 0 then goto next_shift_x_e
+      temp_v = ex[iter]
+      ex[iter] = ex[iter] - temp_bx
+      
+      if temp_bx >= 128 then goto shift_add_x_e
+      ; Subtraction (Pos Scroll)
+      if ex[iter] > temp_v then ex_hi[iter] = ex_hi[iter] - 1
+      goto check_wrap_x_e
+shift_add_x_e
+      ; Addition (Neg Scroll)
+      if ex[iter] < temp_v then ex_hi[iter] = ex_hi[iter] + 1
+check_wrap_x_e
+      if ex_hi[iter] = 255 then ex_hi[iter] = 3
+      if ex_hi[iter] >= 4 then ex_hi[iter] = 0
+next_shift_x_e
+   next
+   
+   ; Asteroid
+   if alife = 0 then goto skip_shift_x_a
+      temp_v = ax
+      ax = ax - temp_bx
+      if temp_bx >= 128 then goto shift_add_x_a
+      if ax > temp_v then ax_hi = ax_hi - 1
+      goto check_wrap_x_a
+shift_add_x_a
+      if ax < temp_v then ax_hi = ax_hi + 1
+check_wrap_x_a
+      if ax_hi = 255 then ax_hi = 3
+      if ax_hi >= 4 then ax_hi = 0
+skip_shift_x_a
+   
+   ; Bullets (Screen Spaceish)
+   for iter = 0 to 3
+      if blife[iter] > 0 then bul_x[iter] = bul_x[iter] - temp_bx
+   next
+   for iter = 0 to 3
+      if eblife[iter] > 0 then ebul_x[iter] = ebul_x[iter] - temp_bx
+   next
+
+   ; Stars (Screen Wrap 0-160)
+   for iter = 0 to 19
+      star_x[iter] = star_x[iter] - temp_bx
+      if star_x[iter] > 160 && star_x[iter] < 240 then star_x[iter] = 0
+      if star_x[iter] >= 240 then star_x[iter] = 159
+   next
+
+skip_shift_x
+
+   ; --- Y Shift ---
+   if temp_by = 0 then return
+   
+   ; Enemies
+   for iter = 0 to 3
+      if elife[iter] = 0 then goto next_shift_y_e
+      temp_v = ey[iter]
+      ey[iter] = ey[iter] - temp_by
+      
+      if temp_by >= 128 then goto shift_add_y_e
+      if ey[iter] > temp_v then ey_hi[iter] = ey_hi[iter] - 1
+      goto check_wrap_y_e
+shift_add_y_e
+      if ey[iter] < temp_v then ey_hi[iter] = ey_hi[iter] + 1
+check_wrap_y_e
+      if ey_hi[iter] = 255 then ey_hi[iter] = 3
+      if ey_hi[iter] >= 4 then ey_hi[iter] = 0
+next_shift_y_e
+   next
+   
+   ; Asteroid
+   if alife = 0 then goto skip_shift_y_a
+      temp_v = ay
+      ay = ay - temp_by
+      if temp_by >= 128 then goto shift_add_y_a
+      if ay > temp_v then ay_hi = ay_hi - 1
+      goto check_wrap_y_a
+shift_add_y_a
+      if ay < temp_v then ay_hi = ay_hi + 1
+check_wrap_y_a
+      if ay_hi = 255 then ay_hi = 3
+      if ay_hi >= 4 then ay_hi = 0
+skip_shift_y_a
+   
+   ; Bullets
+   for iter = 0 to 3
+      if blife[iter] > 0 then bul_y[iter] = bul_y[iter] - temp_by
+   next
+   for iter = 0 to 3
+      if eblife[iter] > 0 then ebul_y[iter] = ebul_y[iter] - temp_by
+   next
+   
+   ; Stars (Screen Wrap 0-192)
+   for iter = 0 to 19
+      star_y[iter] = star_y[iter] - temp_by
+      if star_y[iter] > 192 && star_y[iter] < 240 then star_y[iter] = 0
+      if star_y[iter] >= 240 then star_y[iter] = 191
+   next
+   
    return
 
    ; ---- Data Tables (ROM) ----
@@ -1341,10 +1530,10 @@ level_complete
    ; All fighters destroyed - level won!
    gosub StopMusic
    clearscreen
-   BACKGRND=$B4  ; Green = victory
+   BACKGRND=$00  ; Black (was Green)
    ; Display level number
    temp_v = converttobcd(current_level)
-   plotvalue scoredigits_8_wide 7 temp_v 1 75 88
+   ; plotvalue scoredigits_8_wide 7 temp_v 1 75 88 ; this is way offscreen.
    drawscreen
    
    ; Wait for button release first
@@ -1410,11 +1599,10 @@ restart_level
    prize_active3 = 1
    prize_active4 = 1
    
-   ; Reset player position
-   px = 60 : py = 80
-   px_hi = 0 : py_hi = 0
-   cam_x = 0 : cam_x_hi = 0
-   cam_y = 0 : cam_y_hi = 0
+   ; Reset player position - Segment 2 at (80, 90) -> (592, 602)
+   px = 80 : py = 90
+   px_hi = 2 : py_hi = 2
+   ; Camera removed
    
    ; Clear enemies
    for iter = 0 to 3
@@ -1473,7 +1661,7 @@ you_win_game
    ; Won all levels!
    gosub StopMusic
    clearscreen
-   BACKGRND=$B4  ; Green = victory
+   BACKGRND=$00  ; Black (was Green)
    ; Flash celebration
    drawscreen
    ; Wait for button release first
@@ -1501,7 +1689,7 @@ you_lose
    ; Game Over - no lives left
    gosub StopMusic
    clearscreen
-   BACKGRND=$44  ; Red = game over
+   BACKGRND=$00  ; Black (was Red)
    drawscreen
    ; Wait for button release first
 you_lose_release
@@ -1563,9 +1751,9 @@ PlayMusic
    lda (temp1),y  ; A = Value
    sta $0450,x    ; Write to POKEY
    iny
-   cpy #64        ; Prevent infinite processing
+   cpy #64        ; Safety: Prevent infinite processing (Max 64 bytes/frame)
    bcs .EndFrame  ; Force exit if too many bytes
-   bne .Loop      ; Safety branch (though 0xFF should catch it)
+   bne .Loop      ; Continue if not 0
 
 .EndFrame:
    ; Advance pointer past the 0xFF
@@ -1592,4 +1780,5 @@ end
    asm
 MusicData:
    incbin "../music/Song_01.bin"
+   .byte $FE ; Safety Terminator (Loop Song)
 end
