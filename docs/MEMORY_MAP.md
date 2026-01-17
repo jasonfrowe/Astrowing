@@ -1,124 +1,149 @@
 # Variable Memory Map - AtariTrader
+**Last Updated: 2026-01-17**
 
 ## Purpose
-Track all variable assignments to prevent memory collisions. **Critical for debugging:** Arrays occupy consecutive memory locations!
+Track all variable assignments to prevent memory collisions. 
+**Critical for debugging:** Arrays occupy consecutive memory locations!
 
-## Variable Allocation (sorted by var number)
+## Variable Usage Summary
 
-### var40-59: Projectiles & Related
-- `var40-43`: `bul_x` - Player bullet X positions (4 elements)
-- `var44-47`: `bul_y` - Player bullet Y positions (4 elements)
-- `var48-51`: `evx` - Enemy velocity X (4 elements)
-- `var52-55`: `evy` - Enemy velocity Y (4 elements)
-- `var56-59`: `elife` - Enemy life states (4 elements)
+| Range | Usage | Status | Notes |
+|---|---|---|---|
+| **var0-17** | Core Globals/Temp | **Busy** | px, py, frame, iter, etc. |
+| **var18-37** | Player Bullets (4) | **Full** | x, y, vx, vy, life |
+| **var38-39** | Temp vars | **Full** | temp_bx, temp_by |
+| **var40-59** | Enemies (4) | **Full** | x, y, vx, vy, life |
+| **var60-71** | Enemy Bullets (4) | **Partial** | x, y, vx (vy moved to 160) |
+| **var72-73** | Cooldowns/Temp | **Full** | ecooldown, temp_w |
+| **var74-77** | Enemy X Hi (4) | **Full** | ex_hi |
+| **var78-79** | Physics Acc | **Full** | acc_mx, acc_my |
+| **var80-99** | Star X (4 used) | **Partial** | Alloc 20, Using 4 (80-83) |
+| **var100-119**| Star Y (4 used) | **Partial** | Alloc 20, Using 4 (100-103)|
+| **var120-139**| Star Color (4 used)| **Mixed** | Alloc 20, Using 4 (120-123) **NOTE: ey_hi at 130**|
+| **var130-133**| Enemy Y Hi (4) | **Full** | ey_hi (Inside unused star block)|
+| **var140-149**| Player/Game State | **Full** | lives, shield, timer, internal vars |
+| **var150-156**| Asteroid | **Full** | ax, ay, vx, vy, life, hi bytes |
+| **var157-159**| BCD Display | **Partial** | 158, 159 mostly free? |
+| **var160-169**| Enemy Bullets/Life | **Partial** | ebul_vy(160-163), eblife(164-167) |
+| **var170-175**| Hi Bytes & Cam | **Full** | px_hi, cam vars |
+| **var180-195**| Bullet Hi Bytes | **Full** | bul/ebul hi bytes |
+| **var196** | Temp Hi | **Full** | temp_val_hi |
+| **var197-213**| Screen Coords | **Full** | Cached render coords & visibility |
+| **var214-219**| *Unused* | **FREE** | Available |
+| **var220-222**| Config | **Full** | move_mask, cooldown, level |
+| **var223-227**| Prizes (5) | **Full** | prize_active flags |
+| **var228-230**| Music | **Full** | ptr_lo, ptr_hi, active |
 
-### var60-73: Enemy Bullets & Temp
-- `var60-63`: `ebul_x` - Enemy bullet X positions (4 elements)
-- `var64-67`: `ebul_y` - Enemy bullet Y positions (4 elements)
-- `var68-71`: `ebul_vx` - Enemy bullet velocity X (4 elements)
-- `var72`: `ecooldown` - Enemy firing cooldown
-- `var73`: `temp_w` - Temporary variable
+## Detailed Allocation (Sorted by Var Number)
 
-### var74-79: Enemy High Bytes & Safety
-- `var74-77`: `ex_hi` - Enemy X high bytes (4 elements) **NOTE: COLLISION - var74 was also used for enemy_move_mask (FIXED)**
-- `var78`: `acc_mx` - Physics accumulator X
-- `var79`: `acc_my` - Physics accumulator Y
-- **var76-79**: Marked as "Safety Buffer" but var74-77 occupied
+### Core & Player Bullets (0-39)
+- `var0-17`: Globals (px, py, frame, etc.)
+- `var18-21`: `bul_x` (4)
+- `var22-25`: `bul_y` (4)
+- `var26-29`: `bul_vx` (4)
+- `var30-33`: `bul_vy` (4)
+- `var34-37`: `blife` (4)
+- `var38`: `temp_bx`
+- `var39`: `temp_by`
 
-### var80-109: Starfield
-- `var80-83`: `star_x` - Star X positions (4 elements)
-- `var84-87`: `star_y` - Star Y positions (4 elements)
-- `var88-91`: `star_pal` - Star palettes (4 elements)
+### Enemies (40-59)
+- `var40-43`: `ex` (4)
+- `var44-47`: `ey` (4)
+- `var48-51`: `evx` (4)
+- `var52-55`: `evy` (4)
+- `var56-59`: `elife` (4)
 
-### var110-149: Player & Misc
-- `var110-113`: `ex` - Enemy X positions (4 elements)
-- `var114-117`: `ey` - Enemy Y positions (4 elements)
-- `var118-121`: `blife` - Player bullet life (4 elements)
-- `var122-125`: `bul_vx` - Player bullet velocity X (4 elements)
-- `var126-129`: `bul_vy` - Player bullet velocity Y (4 elements)
-- `var130-133`: `ey_hi` - Enemy Y high bytes (4 elements)
-- `var140`: `sc1` - Star cycle state 1
-- `var141`: `sc2` - Star cycle state 2
-- `var142`: `sc3` - Star cycle state 3
-- `var143`: `cycle_state` - Cycle state
-- `var144`: `fighters_remaining` - Enemies to destroy (was score_p)
-- `var145`: `player_shield` - Shield value 0-99 (was score_e)
-- `var146`: `bcd_score` - BCD conversion temp
-- `var147`: `player_lives` - Lives remaining
-- `var148`: `rand_val` - Random value
-- `var149`: *(appears unused)*
+### Enemy Bullets & Temp (60-73)
+- `var60-63`: `ebul_x` (4)
+- `var64-67`: `ebul_y` (4)
+- `var68-71`: `ebul_vx` (4)
+- `var72`: `ecooldown`
+- `var73`: `temp_w`
 
-### var150-179: Asteroid & BCD
-- `var150`: `ax` - Asteroid X position
-- `var151`: `ay` - Asteroid Y position
-- `var152`: `avx` - Asteroid velocity X
-- `var153`: `avy` - Asteroid velocity Y
-- `var154`: `alife` - Asteroid life
-- `var155`: `ax_hi` - Asteroid X high byte
-- `var156`: `ay_hi` - Asteroid Y high byte
-- `var157`: `fighters_bcd` - BCD version for display
-- `var158`: `shield_bcd` - BCD version for display
-- `var159`: *(appears unused)*
-- `var160-163`: `ebul_vy` - Enemy bullet velocity Y (4 elements, moved to safe zone)
-- `var164-167`: `eblife` - Enemy bullet life (4 elements) **NOTE: COLLISION - var166 was used for current_level (FIXED)**
-- `var170`: `px_hi` - Player X high byte
-- `var171`: `py_hi` - Player Y high byte
-- `var172`: `cam_x` - Camera X
-- `var173`: `cam_x_hi` - Camera X high byte
-- `var174`: `cam_y` - Camera Y
-- `var175`: `cam_y_hi` - Camera Y high byte
+### Enemy High Bytes (74-79)
+- `var74-77`: `ex_hi` (4)
+- `var78`: `acc_mx`
+- `var79`: `acc_my`
 
-### var180-220: Bullet High Bytes & Arrays
-- `var180-183`: `bul_x_hi` - Player bullet X high bytes (4 elements)
-- `var184-187`: `bul_y_hi` - Player bullet Y high bytes (4 elements)
-- `var188-191`: `ebul_x_hi` - Enemy bullet X high bytes (4 elements)
-- `var192-195`: `ebul_y_hi` - Enemy bullet Y high bytes (4 elements)
-- `var196`: `temp_val_hi` - Temporary high byte
-- `var197`: `px_scr` - Player X screen position
-- `var198`: `py_scr` - Player Y screen position
-- `var199-202`: `ex_scr` - Enemy X screen positions (4 elements)
-- `var203-206`: `ey_scr` - Enemy Y screen positions (4 elements)
-- `var207`: `ax_scr` - Asteroid X screen position
-- `var208`: `ay_scr` - Asteroid Y screen position
-- `var209-212`: `e_on` - Enemy visibility flags (4 elements)
-- `var213`: `a_on` - Asteroid visibility flag
+### Starfield & Collision Zone (80-139)
+**NOTE:** Stars reduced to 4 elements.
+- `var80-83`: `star_x` (using 4, allocated range 80-99)
+- `var84-99`: *Unused* (reserved for more stars)
+- `var100-103`: `star_y` (using 4, allocated range 100-119)
+- `var104-119`: *Unused*
+- `var120-123`: `star_c` (using 4, allocated range 120-139)
+- `var124-129`: *Unused*
+- `var130-133`: `ey_hi` (4) **(Defined here safely)**
+- `var134-139`: *Unused*
 
-### var220-227: Difficulty Config & Prizes (SAFE ZONE)
-- `var220`: `enemy_move_mask` - Frame mask for movement speed (MOVED from var74)
-- `var221`: `enemy_fire_cooldown` - Cooldown frames after firing (MOVED from var75)
-- `var222`: `current_level` - Current level 1-5 (MOVED from var166)
-- `var223`: `prize_active0` - Prize 0 state (MOVED from var150)
-- `var224`: `prize_active1` - Prize 1 state (MOVED from var151)
-- `var225`: `prize_active2` - Prize 2 state (MOVED from var152)
-- `var226`: `prize_active3` - Prize 3 state (MOVED from var153)
-- `var227`: `prize_active4` - Prize 4 state (MOVED from var154)
+### Game State (140-149)
+- `var140-142`: `sc1, sc2, sc3` (Star cycle)
+- `var143`: `cycle_state`
+- `var144`: `fighters_remaining`
+- `var145`: `player_shield`
+- `var146`: `bcd_score`
+- `var147`: `player_lives`
+- `var148`: `rand_val`
+- `var149`: `screen_timer`
 
-## Collisions Found & Fixed
+### Asteroid (150-156)
+- `var150`: `ax`
+- `var151`: `ay`
+- `var152`: `avx`
+- `var153`: `avy`
+- `var154`: `alife`
+- `var155`: `ax_hi`
+- `var156`: `ay_hi`
 
-### 1. enemy_move_mask (var74) vs ex_hi array (var74-77) ✅
-- **Issue**: Difficulty config was being overwritten by enemy positions
-- **Fix**: Moved `enemy_move_mask` to var220
+### BCD Display (157-159)
+- `var157`: `fighters_bcd`
+- `var158`: `shield_bcd`
+- `var159`: *Unused*
 
-### 2. enemy_fire_cooldown (var75) vs ex_hi array (var74-77) ✅
-- **Issue**: Fire cooldown was being overwritten by enemy positions
-- **Fix**: Moved `enemy_fire_cooldown` to var221
+### Enemy Bullets 2 (160-169)
+- `var160-163`: `ebul_vy` (4)
+- `var164-167`: `eblife` (4)
+- `var168-169`: *Unused*
 
-### 3. current_level (var166) vs eblife array (var164-167) ✅
-- **Issue**: Level number was being overwritten by enemy bullet life states
-- **Fix**: Moved `current_level` to var222
+### Player High Bytes & Camera (170-179)
+- `var170`: `px_hi`
+- `var171`: `py_hi`
+- `var172`: `cam_x`
+- `var173`: `cam_x_hi`
+- `var174`: `cam_y`
+- `var175`: `cam_y_hi`
+- `var176-179`: *Unused*
 
-### 4. prize_active vars (var150-154) vs asteroid vars (var150-156) ✅
-- **Issue**: Prize variables colliding with asteroid position/velocity/life data
-- **Fix**: Moved `prize_active0-4` to var223-227
+### Bullet High Bytes (180-196)
+- `var180-183`: `bul_x_hi` (4)
+- `var184-187`: `bul_y_hi` (4)
+- `var188-191`: `ebul_x_hi` (4)
+- `var192-195`: `ebul_y_hi` (4)
+- `var196`: `temp_val_hi`
 
-## Recommendations
+### Screen Coordinates (Render Cache) (197-213)
+- `var197`: `px_scr`
+- `var198`: `py_scr`
+- `var199-202`: `ex_scr` (4)
+- `var203-206`: `ey_scr` (4)
+- `var207`: `ax_scr`
+- `var208`: `ay_scr`
+- `var209-212`: `e_on` (4)
+- `var213`: `a_on`
 
-1. **Keep var220-255 as "safe zone"** for global state variables
-2. **Always check array ranges** when adding new variables
-3. **Declare all persistent variables at global scope**, not in subroutines
-4. **Document array sizes** in comments: `dim array_name = varN ; varN-varM (size elements)`
+### FREE ZONE (214-219)
+- `var214-219`: *Available*
 
-## Memory Usage Summary
-- **Used ranges**: 40-213, 220-222
-- **Safe for allocation**: 214-219, 223+
-- **Potentially fragmented**: 149, 159
+### Config & Safe Zone (220-230)
+- `var220`: `enemy_move_mask`
+- `var221`: `enemy_fire_cooldown`
+- `var222`: `current_level`
+- `var223-227`: `prize_active` 0-4
+- `var228`: `music_ptr_lo`
+- `var229`: `music_ptr_hi`
+- `var230`: `music_active`
+
+## Configuration Log
+- **Stars:** Reduced to 4 to save performance. Memory block 80-139 is largely empty, but `ey_hi` is planted at 130.
+- **Enemies:** 4 max.
+- **Bullets:** 4 player, 4 enemy.

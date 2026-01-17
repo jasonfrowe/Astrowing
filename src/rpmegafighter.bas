@@ -75,7 +75,7 @@
    dim bul_vy = var30 ; uses 30, 31, 32, 33
    dim blife = var34 ; uses 34, 35, 36, 37
    
-   dim player_lives = var147 ; Lives Variable (Safe from collisions)
+   dim player_lives = $254B ; Lives Variable (Safe from collisions)
 
    ; Enemy Bullet Variables (Pool of 2)
    ; Using var60+
@@ -85,33 +85,33 @@
    ; Let's keep them Screen Space temporarily to confirm Player scrolling first.
    dim ebul_y  = var64
    dim ebul_vx = var68 ; 68-71
-   dim ebul_vy = var160 ; Moved to 160 safe zone
-   dim eblife  = var164 ; 164-167
+   dim ebul_vy = $2560 ; Moved to 160 safe zone
+   dim eblife  = $2564 ; 164-167
 
    ; High Byte Arrays for Bullets (World Coords)
-   dim bul_x_hi = var180 ; 180-183
-   dim bul_y_hi = var184 ; 184-187
-   dim ebul_x_hi = var188 ; 188-191
-   dim ebul_y_hi = var192 ; 192-195
-   dim temp_val_hi = var196
+   dim bul_x_hi = $2580 ; 180-183
+   dim bul_y_hi = $2584 ; 184-187
+   dim ebul_x_hi = $2588 ; 188-191
+   dim ebul_y_hi = $258C ; 192-195
+   dim temp_val_hi = $2590
    dim ecooldown = var72
    dim temp_w = var73
    
    ; Level Difficulty Config (MOVED to avoid collision with ex_hi at var74-77)
-   dim enemy_move_mask = var220     ; Frame mask for enemy movement speed
-   dim enemy_fire_cooldown = var221 ; Cooldown frames after enemy fires
+   dim enemy_move_mask = $25A2     ; Frame mask for enemy movement speed
+   dim enemy_fire_cooldown = $25A3 ; Cooldown frames after enemy fires
    
    ; Safety Buffer 76-79
    
    ; Starfield Variables (20 stars)
    ; Moved to var80+ to prevent memory corruption from scratch vars
    dim star_x = var80 ; 80-99
-   dim star_y = var100 ; 100-119
-   dim star_c = var120 ; 120-139
-   dim sc1 = var140
-   dim sc2 = var141
-   dim sc3 = var142
-   dim cycle_state = var143
+   dim star_y = $2500 ; 2500-2519
+   dim star_c = $2520 ; 2520-2539
+   dim sc1 = $2544
+   dim sc2 = $2545
+   dim sc3 = $2546
+   dim cycle_state = $2547
 
    ; Enemy Variables (Single Enemy for now)
    ; Enemy Variables (Pool of 4)
@@ -124,29 +124,29 @@
    
    ; High Byte Arrays for Enemies (World Support)
    dim ex_hi = var74 ; 74,75,76,77 (Using Buffer)
-   dim ey_hi = var130 ; 130,131,132,133
+   dim ey_hi = $2540 ; 2540-2543
    
    ; Physics Accumulators (Dedicated)
    dim acc_mx = var78
    dim acc_my = var79
 
    ; Music State (Safe Zone per MEMORY_MAP)
-   dim music_active = var230 ; 0=Stopped, 1=Playing
-   dim music_ptr_lo = var228
-   dim music_ptr_hi = var229
+   dim music_active = $25AC ; 0=Stopped, 1=Playing
+   dim music_ptr_lo = $25AA
+   dim music_ptr_hi = $25AB
    
-   dim rand_val = var148
-   dim screen_timer = var149 ; Generic timeout timer
+   dim rand_val = $254C
+   dim screen_timer = $254D ; Generic timeout timer
    
    ; Asteroid Variables (Single Large Asteroid)
    ; Moved to var150 to make room for enemy arrays
-   dim ax = var150
-   dim ay = var151
-   dim avx = var152
-   dim avy = var153
-   dim alife = var154
-   dim ax_hi = var155
-   dim ay_hi = var156
+   dim ax = $2550
+   dim ay = $2551
+   dim avx = $2552
+   dim avy = $2553
+   dim alife = $2554
+   dim ax_hi = $2555
+   dim ay_hi = $2556
    
    ; Aliases for plotsprite usage
    dim bul_x0 = var18 : dim bul_x1 = var19 : dim bul_x2 = var20 : dim bul_x3 = var21
@@ -154,14 +154,14 @@
    dim blife0 = var34 : dim blife1 = var35 : dim blife2 = var36 : dim blife3 = var37
 
    ; Cached Render Coordinates (Optimization)
-   dim px_scr = var197
-   dim py_scr = var198
-   dim ex_scr = var199 ; 199-202
-   dim ey_scr = var203 ; 203-206
-   dim ax_scr = var207
-   dim ay_scr = var208
-   dim e_on   = var209 ; 209-212
-   dim a_on   = var213
+   dim px_scr = $2591
+   dim py_scr = $2592
+   dim ex_scr = $2593 ; 199-202
+   dim ey_scr = $2597 ; 203-206
+   dim ax_scr = $259B
+   dim ay_scr = $259C
+   dim e_on   = $259D ; 209-212
+   dim a_on   = $25A1
 
    ; 0 = inactive, >0 = active frames
    
@@ -190,31 +190,31 @@ cold_start
    enemy_fire_cooldown = 60   ; Default: slow fire
 
    ; Game State Variables
-   dim fighters_remaining = var144  ; Enemies left to destroy (was score_p)
-   dim player_shield = var145       ; Current shield value 0-99 (was score_e)
-   dim bcd_score = var146           ; Temporary for BCD conversion
-   dim current_level = var222       ; Current level (1-5) - moved from var166 (collision with eblife array)
+   dim fighters_remaining = $2548  ; Enemies left to destroy (was score_p)
+   dim player_shield = $2549       ; Current shield value 0-99 (was score_e)
+   dim bcd_score = $254A           ; Temporary for BCD conversion
+   dim current_level = $25A4       ; Current level (1-5) - moved from var166 (collision with eblife array)
    
    ; Prize Collection System (moved to safe zone var223-227)
-   dim prize_active0 = var223
-   dim prize_active1 = var224
-   dim prize_active2 = var225
-   dim prize_active3 = var226
-   dim prize_active4 = var227
+   dim prize_active0 = $25A5
+   dim prize_active1 = $25A6
+   dim prize_active2 = $25A7
+   dim prize_active3 = $25A8
+   dim prize_active4 = $25A9
    
    ; Cached BCD Variables (Optimization)
-   dim fighters_bcd = var157        ; BCD version for display (was score_p_bcd)
-   dim shield_bcd = var158          ; BCD version for display (was score_e_bcd)
+   dim fighters_bcd = $2557        ; BCD version for display (was score_p_bcd)
+   dim shield_bcd = $2558          ; BCD version for display (was score_e_bcd)
    
    ; Player High Bytes
-   dim px_hi = var170
-   dim py_hi = var171
+   dim px_hi = $2570
+   dim py_hi = $2571
    
    ; Camera Vars
-   dim cam_x = var172
-   dim cam_x_hi = var173
-   dim cam_y = var174
-   dim cam_y_hi = var175
+   dim cam_x = $2572
+   dim cam_x_hi = $2573
+   dim cam_y = $2574
+   dim cam_y_hi = $2575
 
 title_loop
     clearscreen
@@ -1151,10 +1151,7 @@ skip_s2
 skip_s3
    return
 
-   dim sc1 = var140
-   dim sc2 = var141
-   dim sc3 = var142
-   dim cycle_state = var143 ; 0, 1, 2
+
 
 ...
 

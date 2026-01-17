@@ -105,63 +105,55 @@ sprite_spaceship2_width = $04
 sprite_spaceship1_mode = $00
 sprite_spaceship1_width_twoscompliment = $1c
 sprite_spaceship1_width = $04
-cycle_state = var143
+cam_y_hi = $2575
  
-sc3 = var142
+cam_y = $2574
  
-sc2 = var141
+cam_x_hi = $2573
  
-sc1 = var140
+cam_x = $2572
  
-cam_y_hi = var175
+py_hi = $2571
  
-cam_y = var174
+px_hi = $2570
  
-cam_x_hi = var173
+shield_bcd = $2558
  
-cam_x = var172
+fighters_bcd = $2557
  
-py_hi = var171
+prize_active4 = $25A9
  
-px_hi = var170
+prize_active3 = $25A8
  
-shield_bcd = var158
+prize_active2 = $25A7
  
-fighters_bcd = var157
+prize_active1 = $25A6
  
-prize_active4 = var227
+prize_active0 = $25A5
  
-prize_active3 = var226
+current_level = $25A4
  
-prize_active2 = var225
+bcd_score = $254A
  
-prize_active1 = var224
+player_shield = $2549
  
-prize_active0 = var223
+fighters_remaining = $2548
  
-current_level = var222
+a_on = $25A1
  
-bcd_score = var146
+e_on = $259D
  
-player_shield = var145
+ay_scr = $259C
  
-fighters_remaining = var144
+ax_scr = $259B
  
-a_on = var213
+ey_scr = $2597
  
-e_on = var209
+ex_scr = $2593
  
-ay_scr = var208
+py_scr = $2592
  
-ax_scr = var207
- 
-ey_scr = var203
- 
-ex_scr = var199
- 
-py_scr = var198
- 
-px_scr = var197
+px_scr = $2591
  
 blife3 = var37
  
@@ -178,35 +170,35 @@ bul_x3 = var21
 bul_x2 = var20 
 bul_x1 = var19 
 bul_x0 = var18 
-ay_hi = var156
+ay_hi = $2556
  
-ax_hi = var155
+ax_hi = $2555
  
-alife = var154
+alife = $2554
  
-avy = var153
+avy = $2553
  
-avx = var152
+avx = $2552
  
-ay = var151
+ay = $2551
  
-ax = var150
+ax = $2550
  
-screen_timer = var149
+screen_timer = $254D
  
-rand_val = var148
+rand_val = $254C
  
-music_ptr_hi = var229
+music_ptr_hi = $25AB
  
-music_ptr_lo = var228
+music_ptr_lo = $25AA
  
-music_active = var230
+music_active = $25AC
  
 acc_my = var79
  
 acc_mx = var78
  
-ey_hi = var130
+ey_hi = $2540
  
 ex_hi = var74
  
@@ -220,41 +212,41 @@ ey = var44
  
 ex = var40
  
-cycle_state = var143
+cycle_state = $2547
  
-sc3 = var142
+sc3 = $2546
  
-sc2 = var141
+sc2 = $2545
  
-sc1 = var140
+sc1 = $2544
  
-star_c = var120
+star_c = $2520
  
-star_y = var100
+star_y = $2500
  
 star_x = var80
  
-enemy_fire_cooldown = var221
+enemy_fire_cooldown = $25A3
  
-enemy_move_mask = var220
+enemy_move_mask = $25A2
  
 temp_w = var73
  
 ecooldown = var72
  
-temp_val_hi = var196
+temp_val_hi = $2590
  
-ebul_y_hi = var192
+ebul_y_hi = $258C
  
-ebul_x_hi = var188
+ebul_x_hi = $2588
  
-bul_y_hi = var184
+bul_y_hi = $2584
  
-bul_x_hi = var180
+bul_x_hi = $2580
  
-eblife = var164
+eblife = $2564
  
-ebul_vy = var160
+ebul_vy = $2560
  
 ebul_vx = var68
  
@@ -262,7 +254,7 @@ ebul_y = var64
  
 ebul_x = var60
  
-player_lives = var147
+player_lives = $254B
  
 blife = var34
  
