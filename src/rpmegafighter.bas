@@ -256,10 +256,9 @@ init_game
      gosub StopMusic
      music_ptr_hi = 0 ; Force reset on next PlayMusic call
      ; Initialize Variables (Reset)
-     ; Initialize Player at (592, 602) -> (512+80, 512+90)
-     ; Center of 1024x1024 World (Segment 2)
-     px = 80 : px_hi = 2
-     py = 90 : py_hi = 2
+     ; Initialize Player at (256+80, 256+90) -> Center of 512x512
+     px = 80 : px_hi = 1
+     py = 90 : py_hi = 1
      
      
      ; Camera removed (Player Centric)
@@ -759,8 +758,8 @@ apply_neg_x
        if ex[iter] > temp_acc then ex_hi[iter] = ex_hi[iter] - 1
 apply_x_done
        ; Wrap World X (4 segments = 1024)
-       if ex_hi[iter] = 255 then ex_hi[iter] = 3
-       if ex_hi[iter] >= 4 then ex_hi[iter] = 0
+       if ex_hi[iter] = 255 then ex_hi[iter] = 1
+       if ex_hi[iter] >= 2 then ex_hi[iter] = 0
 
        ; Apply Velocity Y
        temp_v = evy[iter]
@@ -776,8 +775,8 @@ apply_neg_y
        if ey[iter] > temp_acc then ey_hi[iter] = ey_hi[iter] - 1
 apply_y_done
        ; Wrap World Y (4 segments = 1024)
-       if ey_hi[iter] = 255 then ey_hi[iter] = 3
-       if ey_hi[iter] >= 4 then ey_hi[iter] = 0
+       if ey_hi[iter] = 255 then ey_hi[iter] = 1
+       if ey_hi[iter] >= 2 then ey_hi[iter] = 0
        
        ; Firing Chance (Global Cooldown)
        if ecooldown > 0 then goto skip_firing_chance
@@ -823,7 +822,7 @@ spawn_left
        temp_v = px - 90
        ex[iter] = temp_v
        if temp_v > px then ex_hi[iter] = ex_hi[iter] - 1 ; Underflow
-       if ex_hi[iter] = 255 then ex_hi[iter] = 3 ; Wrap Down
+       if ex_hi[iter] = 255 then ex_hi[iter] = 1 ; Wrap Down
        goto spawn_set_y
 
 spawn_right
@@ -831,8 +830,8 @@ spawn_right
        temp_v = px + 90
        ex[iter] = temp_v
        if temp_v < px then ex_hi[iter] = ex_hi[iter] + 1 ; Overflow
-       if ex_hi[iter] >= 4 then ex_hi[iter] = 0 ; Wrap Up
-       if ex_hi[iter] = 255 then ex_hi[iter] = 3 ; Wrap Down (Safety)
+       if ex_hi[iter] >= 2 then ex_hi[iter] = 0 ; Wrap Up
+       if ex_hi[iter] = 255 then ex_hi[iter] = 1 ; Wrap Down (Safety)
 
 spawn_set_y
        ; Random Y (10 to 180) -> Screen Space
@@ -864,8 +863,8 @@ add_pos_offset
        if temp_w < py then ey_hi[iter] = ey_hi[iter] + 1 ; Carry
 
 check_wrap_y_spawn
-       if ey_hi[iter] = 255 then ey_hi[iter] = 3
-       if ey_hi[iter] >= 4 then ey_hi[iter] = 0
+       if ey_hi[iter] = 255 then ey_hi[iter] = 1
+       if ey_hi[iter] >= 2 then ey_hi[iter] = 0
        
 enemy_logic_done
     next
@@ -981,8 +980,8 @@ ast_move_pos_x
 
 ast_x_done
    ; Wrap X (0-3, 4 segments = 1024)
-   if ax_hi = 255 then ax_hi = 3
-   if ax_hi >= 4 then ax_hi = 0
+   if ax_hi = 255 then ax_hi = 1
+   if ax_hi >= 2 then ax_hi = 0
 
    ; Y Axis
    temp_v = avy
@@ -1001,8 +1000,8 @@ ast_move_pos_y
 
 ast_y_done
    ; Wrap Y (0-3, 4 segments = 1024)
-   if ay_hi = 255 then ay_hi = 3
-   if ay_hi >= 4 then ay_hi = 0
+   if ay_hi = 255 then ay_hi = 1
+   if ay_hi >= 2 then ay_hi = 0
    
    return
 
@@ -1349,36 +1348,36 @@ update_render_coords
       if elife[iter] = 0 then e_on[iter] = 0 : goto next_r_simple
       
       ; --- X Axis --- 
-      if ex_hi[iter] = 2 then goto check_x_center
-      if ex_hi[iter] = 1 then goto check_x_left
+      if ex_hi[iter] = 1 then goto check_x_center
+      if ex_hi[iter] = 0 then goto check_x_left
       e_on[iter] = 0 : goto next_r_simple
 
 check_x_center
-      ; Hi=2 (512+): Use Low Byte directly.
+      ; Hi=1 (Center): Use Low Byte directly.
       ex_scr[iter] = ex[iter]
       if ex_scr[iter] > 170 then e_on[iter] = 0 : goto next_r_simple
       goto x_ok
 
 check_x_left
-      ; Hi=1 (..511): Use Low Byte. Must be escaping left (255..240)
+      ; Hi=0 (Left): Use Low Byte. Must be escaping left (255..240)
       ex_scr[iter] = ex[iter]
       if ex_scr[iter] < 240 then e_on[iter] = 0 : goto next_r_simple
 
 x_ok
       
       ; --- Y Axis ---
-      if ey_hi[iter] = 2 then goto check_y_center
-      if ey_hi[iter] = 1 then goto check_y_top
+      if ey_hi[iter] = 1 then goto check_y_center
+      if ey_hi[iter] = 0 then goto check_y_top
       e_on[iter] = 0 : goto next_r_simple
 
 check_y_center
-      ; Hi=2: Center/Bottom
+      ; Hi=1: Center/Bottom
       ey_scr[iter] = ey[iter]
       if ey_scr[iter] > 210 then e_on[iter] = 0 : goto next_r_simple
       goto y_ok
 
 check_y_top
-      ; Hi=1: Top Edge
+      ; Hi=0: Top Edge
       ey_scr[iter] = ey[iter]
       if ey_scr[iter] < 240 then e_on[iter] = 0 : goto next_r_simple
 
@@ -1391,8 +1390,8 @@ next_r_simple
    if alife = 0 then a_on = 0 : return
    
    ; --- Asteroid X ---
-   if ax_hi = 2 then goto ax_center
-   if ax_hi = 1 then goto ax_left
+   if ax_hi = 1 then goto ax_center
+   if ax_hi = 0 then goto ax_left
    a_on = 0 : return
 
 ax_center
@@ -1407,8 +1406,8 @@ ax_left
 ax_ok
 
    ; --- Asteroid Y ---
-   if ay_hi = 2 then goto ay_center
-   if ay_hi = 1 then goto ay_top
+   if ay_hi = 1 then goto ay_center
+   if ay_hi = 0 then goto ay_top
    a_on = 0 : return
 
 ay_center
@@ -1449,8 +1448,8 @@ shift_add_x_e
       ; Addition (Neg Scroll)
       if ex[iter] < temp_v then ex_hi[iter] = ex_hi[iter] + 1
 check_wrap_x_e
-      if ex_hi[iter] = 255 then ex_hi[iter] = 3
-      if ex_hi[iter] >= 4 then ex_hi[iter] = 0
+      if ex_hi[iter] = 255 then ex_hi[iter] = 1
+      if ex_hi[iter] >= 2 then ex_hi[iter] = 0
 next_shift_x_e
    next
    
@@ -1464,8 +1463,8 @@ next_shift_x_e
 shift_add_x_a
       if ax < temp_v then ax_hi = ax_hi + 1
 check_wrap_x_a
-      if ax_hi = 255 then ax_hi = 3
-      if ax_hi >= 4 then ax_hi = 0
+      if ax_hi = 255 then ax_hi = 1
+      if ax_hi >= 2 then ax_hi = 0
 skip_shift_x_a
    
    ; Bullets (Screen Spaceish)
@@ -1683,9 +1682,9 @@ restart_level
    prize_active3 = 1
    prize_active4 = 1
    
-   ; Reset player position - Segment 2 at (80, 90) -> (592, 602)
+   ; Reset player position - Segment 1 (Center of 512x512)
    px = 80 : py = 90
-   px_hi = 2 : py_hi = 2
+   px_hi = 1 : py_hi = 1
    ; Camera removed
    
    ; Clear enemies

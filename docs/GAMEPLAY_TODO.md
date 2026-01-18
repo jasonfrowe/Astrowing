@@ -46,7 +46,7 @@
 - [x] Update shield depletion on hits:
   - [x] Enemy bullet hit: -1 shield
   - [x] Enemy collision: -2 shields + -1 fighter (fighter destroyed)
-  - [ ] Asteroid collision: -10 shields
+  - [x] Asteroid collision: -10 shields
 - [x] Shield display already in HUD (update to use current shield value)
 - [x] When shields reach 0:
   - [x] Lose one life (`player_lives--`)
