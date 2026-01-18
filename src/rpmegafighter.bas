@@ -1,3 +1,5 @@
+   set romsize 48k
+   
    displaymode 160A
    set doublewide on
    set pokeysupport on
@@ -137,6 +139,7 @@
    dim music_active = $25AC ; 0=Stopped, 1=Playing
    dim music_ptr_lo = $25AA
    dim music_ptr_hi = $25AB
+   dim current_song = $25AD ; 1=Song_01, 2=Song_02
    
    
    ; ASM Driver uses dedicated ZP vars stolen from star array (unused slots)
@@ -1637,6 +1640,10 @@ level_next
    current_level = current_level + 1
    if current_level > 5 then goto you_win_game
    
+   ; Reset music to trigger new song selection for this level
+   gosub StopMusic
+   music_ptr_hi = 0
+   
    ; Partial shield refill (diminishes each level)
    temp_v = 50 - (current_level * 10)
    if temp_v < 0 then temp_v = 0
@@ -1806,10 +1813,35 @@ PlayMusic
    ; Check if initialized (high byte != 0)
    lda music_ptr_hi
    bne .SetupPtr
-   ; Initialize pointer to Start of Song
-   lda #<MusicData
+   
+   ; Initialize pointer based on current_level
+   ; Song_01: Title (level 0), Levels 2, 5
+   ; Song_02: Levels 1, 3, 4
+   
+   lda current_level
+   cmp #1
+   beq .UseSong2
+   cmp #3
+   beq .UseSong2
+   cmp #4
+   beq .UseSong2
+   
+   ; Use Song_01 (Title, Level 2, Level 5)
+.UseSong1:
+   lda #1
+   sta current_song     ; Track which song is playing
+   lda #<Song_01_Data
    sta music_ptr_lo
-   lda #>MusicData
+   lda #>Song_01_Data
+   sta music_ptr_hi
+   jmp .SetupPtr
+   
+.UseSong2:
+   lda #2
+   sta current_song     ; Track which song is playing
+   lda #<Song_02_Data
+   sta music_ptr_lo
+   lda #>Song_02_Data
    sta music_ptr_hi
 
 .SetupPtr:
@@ -1851,17 +1883,35 @@ PlayMusic
    rts
 
 .EndSong:
-   ; Reset pointer to Start
-   lda #<MusicData
+   ; Reset pointer based on current_song variable
+   lda current_song
+   cmp #2
+   beq .LoopSong2
+   
+.LoopSong1:
+   lda #<Song_01_Data
    sta music_ptr_lo
-   lda #>MusicData
+   lda #>Song_01_Data
+   sta music_ptr_hi
+   rts
+   
+.LoopSong2:
+   lda #<Song_02_Data
+   sta music_ptr_lo
+   lda #>Song_02_Data
    sta music_ptr_hi
    rts
 end
 
-   ; Music Data Blob
+   ; Music Data - Two Songs
+   ; Song_01: Title/Levels 2,5
+   ; Song_02: Levels 1,3,4
    asm
-MusicData:
+Song_01_Data:
    incbin "music/Song_01.bin"
+   .byte $FE ; Safety Terminator (Loop Song)
+   
+Song_02_Data:
+   incbin "music/Song_02.bin"
    .byte $FE ; Safety Terminator (Loop Song)
 end

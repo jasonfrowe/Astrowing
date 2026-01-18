@@ -184,6 +184,8 @@ music_zp_hi = var99
  
 music_zp_lo = var98
  
+current_song = $25AD
+ 
 music_ptr_hi = $25AB
  
 music_ptr_lo = $25AA
@@ -4728,4 +4730,5 @@ sprite_spaceship1_color0 = $00
 pokeysupport = 1
 pokeysupport = 1
 DOUBLEWIDE = 1
+ROM48K = 1
 collisionwrap = 1
