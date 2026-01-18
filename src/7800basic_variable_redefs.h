@@ -1,5 +1,8 @@
 ; This file contains variable mapping and other information for the current project.
 
+alphabet_8_wide_mode = $00
+alphabet_8_wide_width_twoscompliment = $18
+alphabet_8_wide_width = $48
 scoredigits_8_wide_mode = $00
 scoredigits_8_wide_width_twoscompliment = $00
 scoredigits_8_wide_width = $20
@@ -300,6 +303,10 @@ py = var1
  
 px = var0
  
+alphabet_8_wide_color3 = $0c
+alphabet_8_wide_color2 = $09
+alphabet_8_wide_color1 = $00
+alphabet_8_wide_color0 = $64
 scoredigits_8_wide_color255 = 0
 scoredigits_8_wide_color254 = 0
 scoredigits_8_wide_color253 = 0

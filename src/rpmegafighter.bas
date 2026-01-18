@@ -40,7 +40,12 @@
    ; Define custom mapping for scoredigits (0-9 + A-F)
    alphachars '0123456789ABCDEF'
    incgraphic graphics/scoredigits_8_wide.png 160A
+
+   ; Import Alphabet for Title Cards
+   alphachars ' !"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~'
+   incgraphic graphics/alphabet_8_wide.png 160A
    
+   alphachars '0123456789ABCDEF'
    characterset scoredigits_8_wide
 
    ; ---- Dimensions ----

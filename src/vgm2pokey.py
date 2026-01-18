@@ -23,6 +23,10 @@ def parse_vgm(vgm_path, output_path):
     frame_events = 0
     total_frames = 0
     
+    # Track 16 POKEY registers, init to -1 (unknown)
+    pokey_regs = [-1] * 16
+
+    
     print(f"Processing {vgm_path} starting at offset 0x{pos:X}...")
 
     while pos < len(data):
@@ -59,12 +63,19 @@ def parse_vgm(vgm_path, output_path):
             # Just pass them through.
             # POKEY has registers $00-$0F at $450-$45F.
             
-            # However, we only care about audio regs generally.
-            # But let's pass EVERYTHING for now to be safe.
+            # OPTIMIZATION: Check for redundant writes
+            should_write = True
+            if reg < 16:
+                if pokey_regs[reg] == val:
+                    should_write = False
+                else:
+                    pokey_regs[reg] = val
             
-            output.append(reg)
-            output.append(val)
-            frame_events += 1
+            if should_write:
+                output.append(reg)
+                output.append(val)
+                frame_events += 1
+                
             pos += 3
             
         elif cmd == 0xB2: # POKEY write? Standard VGM spec says POKEY is different commands
