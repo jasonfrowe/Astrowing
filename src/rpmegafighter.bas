@@ -1011,6 +1011,10 @@ spawn_ebul
    if temp_v > temp_bx then ebul_vx[temp_acc] = 0
    
    ecooldown = enemy_fire_cooldown ; Set from level config
+   
+   ; Play enemy fire sound
+   playsfx sfx_enemyfire 0
+   
    return
 
 update_enemy_bullets
@@ -1188,6 +1192,7 @@ check_collisions
          ; Hit!
          blife[iter] = 0
          elife[temp_acc] = 18 ; Start Explosion (18 frames)
+         playsfx sfx_damage 0 ; Destruction sound
          
          ; Decrement Fighters Remaining
          fighters_remaining = fighters_remaining - 1
@@ -1220,6 +1225,7 @@ skip_bullet_coll
       
       ; Hit Player
       elife[iter] = 18 ; Explode
+      playsfx sfx_damage 0 ; Crash sound for player-fighter collision
       
       ; Decrement Shields
       if player_shield < 2 then player_shield = 0 else player_shield = player_shield - 2
@@ -1290,6 +1296,9 @@ skip_bul_ast
    ; Y Bounce
    if temp_acc >= 128 then vy_m = 128 : vy_p = 0 else vy_p = 128 : vy_m = 0
    
+   ; Play crash sound for collision
+   playsfx sfx_damage 0
+   
    ; 3. Push asteroid away to prevent re-collision
    ; Push asteroid velocity in opposite direction of player bounce
    ; If player bounced left (vx_m=128), push asteroid right (avx=positive)
@@ -1317,6 +1326,7 @@ check_enemy_ast_coll
       
       ; Hit! Destroy Enemy
       elife[iter] = 18 ; Explode
+      playsfx sfx_damage 0 ; Destruction sound (Enemy hits Asteroid)
       ; Grant points?
       
       ; Decrement fighter count
@@ -1369,7 +1379,7 @@ check_player_ebul
       
       ; Hit Player
       eblife[iter] = 0
-      playsfx sfx_laser 0 ; Reuse sound for hit confirm
+      playsfx sfx_damage 0 ; Harsh damage feedback for player hit
       
       ; Decrement Shields
       if player_shield < 1 then player_shield = 0 else player_shield = player_shield - 1
@@ -1692,11 +1702,29 @@ end
    6, 6, 4, 2, 0, 254, 252, 250, 250, 250, 252, 254, 0, 2, 4, 6
 end
    
+   ; Player Laser Sound - High-pitched pew for player shots
    data sfx_laser
-   16, 1, 4 ; version, priority, frames per chunk
-   $18,$02,$06 ; freq, channel, volume
-   $15,$02,$06
-   $12,$02,$06
+   16, 1, 3 ; version, priority, frames per chunk (3 frames = very quick)
+   $1F,$04,$04 ; freq (high pitch), channel 4 (pure tone), volume (quiet)
+   $1C,$04,$03 ; slight pitch bend down
+   $00,$00,$00
+end
+
+   ; Enemy Fire Sound - Lower F# tone for enemy shots
+   data sfx_enemyfire
+   16, 1, 3 ; version, priority, frames per chunk
+   $0C,$04,$05 ; freq ~F# (lower tone), channel 4, volume (medium)
+   $0A,$04,$04
+   $00,$00,$00
+end
+
+   ; Player Damage Sound - Harsh descending buzz for pain feedback
+   data sfx_damage
+   16, 1, 5 ; version, priority, frames per chunk (longer for impact)
+   $08,$08,$0A ; freq (mid-low), channel 8 (harsh/buzz), volume (loud)
+   $0A,$08,$08 ; descending pitch
+   $0C,$08,$06 ; fade out
+   $0E,$08,$04
    $00,$00,$00
 end
 
