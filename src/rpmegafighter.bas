@@ -1596,8 +1596,8 @@ boss_x_ok
    
 boss_y_center
    boss_scr_y = boss_y
-   ; Bottom edge: prevent zone wrap (64px tall), hide when y > 120
-   if boss_scr_y > 172 then boss_on = 0 : return
+   ; Bottom edge: prevent zone wrap (64px tall), hide when y > 192
+   if boss_scr_y > 192 then boss_on = 0 : return
    goto boss_y_ok
    
 boss_y_top
@@ -1887,8 +1887,8 @@ init_boss
    ; Down-Left:  bvx=254, bvy=2
    ; Up-Right:   bvx=2, bvy=254
    ; Up-Left:    bvx=254, bvy=254
-   bvx = 2   ; Right (+)
-   bvy = 2   ; Down (+)
+   bvx = 0   ; Right (+)
+   bvy = 0   ; Down (+)
    
    boss_on = 0  ; Calculated by update_render_coords
    
