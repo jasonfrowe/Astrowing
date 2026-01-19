@@ -6,6 +6,18 @@ alphabet_8_wide_width = $48
 scoredigits_8_wide_mode = $00
 scoredigits_8_wide_width_twoscompliment = $00
 scoredigits_8_wide_width = $20
+Boss_conv_tallsprite_02_mode = $00
+Boss_conv_tallsprite_02_width_twoscompliment = $18
+Boss_conv_tallsprite_02_width = $08
+Boss_conv_tallsprite_01_mode = $00
+Boss_conv_tallsprite_01_width_twoscompliment = $18
+Boss_conv_tallsprite_01_width = $08
+Boss_conv_tallsprite_00_mode = $00
+Boss_conv_tallsprite_00_width_twoscompliment = $18
+Boss_conv_tallsprite_00_width = $08
+Boss_conv_mode = $00
+Boss_conv_width_twoscompliment = $18
+Boss_conv_width = $08
 asteroid_M_conv_tallsprite_00_mode = $00
 asteroid_M_conv_tallsprite_00_width_twoscompliment = $1c
 asteroid_M_conv_tallsprite_00_width = $04
@@ -226,6 +238,14 @@ star_c = $2520
 star_y = $2500
  
 star_x = var80
+ 
+boss_state = $25B3
+ 
+boss_hp = $25B2
+ 
+boss_y = $25B1
+ 
+boss_x = $25B0
  
 asteroid_base_speed = $25AE
  
@@ -563,6 +583,22 @@ scoredigits_8_wide_color3 = $0c
 scoredigits_8_wide_color2 = $09
 scoredigits_8_wide_color1 = $00
 scoredigits_8_wide_color0 = $64
+Boss_conv_tallsprite_02_color3 = $0f
+Boss_conv_tallsprite_02_color2 = $38
+Boss_conv_tallsprite_02_color1 = $1d
+Boss_conv_tallsprite_02_color0 = $00
+Boss_conv_tallsprite_01_color3 = $0f
+Boss_conv_tallsprite_01_color2 = $38
+Boss_conv_tallsprite_01_color1 = $1d
+Boss_conv_tallsprite_01_color0 = $00
+Boss_conv_tallsprite_00_color3 = $0f
+Boss_conv_tallsprite_00_color2 = $38
+Boss_conv_tallsprite_00_color1 = $1d
+Boss_conv_tallsprite_00_color0 = $00
+Boss_conv_color3 = $0f
+Boss_conv_color2 = $38
+Boss_conv_color1 = $1d
+Boss_conv_color0 = $00
 asteroid_M_conv_tallsprite_00_color3 = $0f
 asteroid_M_conv_tallsprite_00_color2 = $38
 asteroid_M_conv_tallsprite_00_color1 = $1d

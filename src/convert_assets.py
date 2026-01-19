@@ -204,13 +204,14 @@ def convert_to_atari_7800(filename):
 
 if __name__ == "__main__":
     files = [
-        "src/bullet.png", 
-        "src/fighter.png", 
-        "src/asteroid_M.png",
-        "src/asteroid_S.png",
-        "src/fighter_explode.png",
-        "src/heart.png",
-        "src/title_screen.png"
+        "src/graphics/bullet.png", 
+        "src/graphics/fighter.png", 
+        "src/graphics/asteroid_M.png",
+        "src/graphics/asteroid_S.png",
+        "src/graphics/fighter_explode.png",
+        "src/graphics/heart.png",
+        "src/graphics/title_screen.png",
+        "src/graphics/Boss.png"
     ]
     for f in files:
         if os.path.exists(f):

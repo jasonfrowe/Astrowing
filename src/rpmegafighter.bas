@@ -36,6 +36,7 @@
    incbanner graphics/title_screen_conv.png 160A 0 1 2 3
    
    incgraphic graphics/asteroid_M_conv.png
+   incgraphic graphics/Boss_conv.png
    
    ; Define custom mapping for scoredigits (0-9 + A-F)
    alphachars '0123456789ABCDEF'
@@ -107,6 +108,12 @@
    
    dim asteroid_move_mask = $25AD
    dim asteroid_base_speed = $25AE
+   
+   ; Boss Variables (Phase 4)
+   dim boss_x = $25B0
+   dim boss_y = $25B1
+   dim boss_hp = $25B2
+   dim boss_state = $25B3
    
    ; Safety Buffer 76-79
    
@@ -557,6 +564,7 @@ main_loop
     gosub draw_player_bullets
     gosub draw_enemies
     if alife > 0 then gosub draw_asteroid
+    if current_level = 6 then gosub draw_boss
     gosub draw_enemy_bullets
     
     ; Update Music
@@ -1686,6 +1694,11 @@ draw_asteroid
    plotsprite asteroid_M_conv 2 ax_scr ay_scr
    return
 
+draw_boss
+   ; Static Test for Level 6
+   plotsprite Boss_conv 3 80 50
+   return
+
 
 level_complete
    ; All fighters destroyed - level won!
@@ -1746,8 +1759,9 @@ level_next
    if current_level = 5 then player_lives = player_lives + 1
 
    ; Advance to next level
+   ; Advance to next level
    current_level = current_level + 1
-   if current_level > 5 then goto you_win_game
+   if current_level > 6 then goto you_win_game
    
    ; Reset music to trigger new song selection for this level
    gosub StopMusic
@@ -1840,6 +1854,9 @@ set_level_fighters
    if current_level = 3 then fighters_remaining = 60
    if current_level = 4 then fighters_remaining = 80
    if current_level >= 5 then fighters_remaining = 99
+   
+   ; Level 6: Boss Level (Keep enemies active for now as requested)
+   if current_level = 6 then fighters_remaining = 99
    return
 
 set_level_config
@@ -1948,8 +1965,11 @@ PlayMusic
    ; Initialize pointer based on current_level
    ; Song_01: Title (level 0), Levels 2, 5
    ; Song_02: Levels 1, 3, 4
+   ; Song_03: Level 6 (Boss)
    
    lda current_level
+   cmp #6
+   beq .UseSong3
    cmp #1
    beq .UseSong2
    cmp #3
@@ -1964,6 +1984,15 @@ PlayMusic
    lda #<Song_01_Data
    sta music_ptr_lo
    lda #>Song_01_Data
+   sta music_ptr_hi
+   jmp .SetupPtr
+
+.UseSong3:
+   lda #3
+   sta current_song
+   lda #<Song_03_Data
+   sta music_ptr_lo
+   lda #>Song_03_Data
    sta music_ptr_hi
    jmp .SetupPtr
    
@@ -2016,6 +2045,8 @@ PlayMusic
 .EndSong:
    ; Reset pointer based on current_song variable
    lda current_song
+   cmp #3
+   beq .LoopSong3
    cmp #2
    beq .LoopSong2
    
@@ -2032,6 +2063,13 @@ PlayMusic
    lda #>Song_02_Data
    sta music_ptr_hi
    rts
+
+.LoopSong3:
+   lda #<Song_03_Data
+   sta music_ptr_lo
+   lda #>Song_03_Data
+   sta music_ptr_hi
+   rts
 end
 
    ; Music Data - Two Songs
@@ -2044,5 +2082,8 @@ Song_01_Data:
    
 Song_02_Data:
    incbin "music/Song_02.bin"
+
+Song_03_Data:
+   incbin "music/Boss.bin"
    .byte $FE ; Safety Terminator (Loop Song)
 end
