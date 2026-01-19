@@ -76,6 +76,8 @@ Variables manually allocated to the upper RAM block using `dim var = $Address`.
 | `$2556` | `ay_hi` | Asteroid Y (High Byte) | |
 | `$2557` | `fighters_bcd` | Fighters Remaining (BCD) | Display |
 | `$2558` | `shield_bcd` | Shield (BCD) | Display |
+| `$2559` | `asteroid_timer` | Asteroid Despawn Timer | 4-second timer (240 frames) |
+| `$255A` | `boss_asteroid_cooldown` | Boss Asteroid Cooldown | Boss throw cooldown |
 | `$2560-2563` | `ebul_vy` | Enemy Bullet Vel Y | Array [4] |
 | `$2564-2567` | `eblife` | Enemy Bullet Lifes | Array [4] |
 | `$2570` | `px_hi` | Player X (High Byte) | |

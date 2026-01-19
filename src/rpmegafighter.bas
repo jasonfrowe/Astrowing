@@ -175,8 +175,8 @@
    dim alife = $2554
    dim ax_hi = $2555
    dim ay_hi = $2556
-   dim asteroid_timer = $2557  ; 4-second despawn timer (240 frames)
-   dim boss_asteroid_cooldown = $25BC ; Cooldown for boss asteroid throws
+   dim asteroid_timer = $2559  ; 4-second despawn timer (Safe address)
+   dim boss_asteroid_cooldown = $255A ; Cooldown for boss asteroid throws (Safe address)
    
    ; Aliases for plotsprite usage
    dim bul_x0 = var18 : dim bul_x1 = var19 : dim bul_x2 = var20 : dim bul_x3 = var21
@@ -1128,9 +1128,16 @@ ast_y_done
    if ay_hi = 255 then ay_hi = 1
    if ay_hi >= 2 then ay_hi = 0
    
+   ; Despawn Timer (only if timer is active)
+   if asteroid_timer > 0 then asteroid_timer = asteroid_timer - 1
+   if asteroid_timer = 0 then if a_on = 0 then alife = 0
+   
    return
 
 spawn_asteroid
+   ; Don't spawn random asteroids during boss level
+   if current_level = 6 then return
+   
    ; Spawn chance
    rand_val = frame & 127
    if rand_val > 5 then return
@@ -1444,15 +1451,26 @@ skip_bul_boss
    next
    
    ; 2. Player vs Boss (Heavy damage)
-   temp_v = px_scr - boss_scr_x
-   temp_v = temp_v + 4 ; Offset
-   if temp_v >= 128 then temp_v = 0 - temp_v
-   if temp_v >= 20 then goto coll_done ; Boss width check
+   ; Player: 16x16 at (px_scr, py_scr) top-left
+   ; Boss: 32x64 at (boss_scr_x, boss_scr_y) top-left
+   ; Check if rectangles overlap
    
-   ; Y Check
-   temp_v = py_scr - boss_scr_y
+   ; X overlap: px_scr < boss_scr_x + 32 AND px_scr + 16 > boss_scr_x
+   ; Simplified: distance between centers < (16+32)/2 = 24
+   
+   ; X Check - distance from player center to boss center
+   temp_v = px_scr + 8 ; Player center X
+   temp_w = boss_scr_x + 16 ; Boss center X
+   temp_v = temp_v - temp_w
    if temp_v >= 128 then temp_v = 0 - temp_v
-   if temp_v >= 36 then goto coll_done ; Boss height check
+   if temp_v >= 24 then goto coll_done ; No X overlap
+   
+   ; Y Check - distance from player center to boss center
+   temp_v = py_scr + 8 ; Player center Y
+   temp_w = boss_scr_y + 32 ; Boss center Y
+   temp_v = temp_v - temp_w
+   if temp_v >= 128 then temp_v = 0 - temp_v
+   if temp_v >= 40 then goto coll_done ; No Y overlap (8+32=40)
    
    ; Hit Player - Heavy Damage
    playsfx sfx_damage 0
@@ -2021,6 +2039,7 @@ boss_pos_ok
    P6C3 = $0A ; Gray
    
    boss_fighter_timer = 60 ; Initial delay (1s)
+   boss_asteroid_cooldown = 120 ; 2 second initial delay
    return
 
 update_boss
@@ -2074,6 +2093,10 @@ boss_y_done
    if boss_fighter_timer > 0 then boss_fighter_timer = boss_fighter_timer - 1
    if boss_fighter_timer = 0 then gosub attempt_boss_spawn_fighter
    
+   ; --- Asteroid Throwing ---
+   if boss_asteroid_cooldown > 0 then boss_asteroid_cooldown = boss_asteroid_cooldown - 1
+   if boss_asteroid_cooldown = 0 then if boss_on = 1 then gosub boss_throw_asteroid
+   
    return
 
 attempt_boss_spawn_fighter
@@ -2106,6 +2129,49 @@ do_spawn_boss_fighter
    
    ; Reset Timer (2 seconds? 120 frames)
    boss_fighter_timer = 120 
+   return
+
+boss_throw_asteroid
+   ; Only throw if asteroid slot is free
+   if alife > 0 then boss_asteroid_cooldown = 30 : return
+   
+   ; Spawn asteroid at boss center
+   alife = 1
+   asteroid_timer = 240 ; 4 seconds at 60fps
+   
+   ; Position at boss center (32x64 sprite)
+   temp_v = boss_x + 16
+   ax = temp_v
+   ax_hi = boss_x_hi
+   if temp_v < boss_x then ax_hi = ax_hi + 1
+   if ax_hi >= 2 then ax_hi = 0
+   
+   temp_v = boss_y + 32
+   ay = temp_v
+   ay_hi = boss_y_hi
+   if temp_v < boss_y then ay_hi = ay_hi + 1
+   if ay_hi >= 2 then ay_hi = 0
+   
+   ; Aim at player
+   if px_hi = ax_hi then goto same_x_quad_throw
+   if px_hi > ax_hi then avx = 3 else avx = 253
+   goto calc_y_vel_throw
+   
+same_x_quad_throw
+   temp_acc = px - ax
+   if temp_acc >= 128 then avx = 253 else avx = 3
+   
+calc_y_vel_throw
+   if py_hi = ay_hi then goto same_y_quad_throw
+   if py_hi > ay_hi then avy = 3 else avy = 253
+   goto throw_done
+   
+same_y_quad_throw
+   temp_acc = py - ay
+   if temp_acc >= 128 then avy = 253 else avy = 3
+   
+throw_done
+   boss_asteroid_cooldown = 120 ; 2 second cooldown
    return
 
 
