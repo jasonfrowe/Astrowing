@@ -124,6 +124,10 @@ py_hi = $2571
  
 px_hi = $2570
  
+cached_level = $2573
+ 
+cached_lives = $2572
+ 
 shield_bcd = $2558
  
 fighters_bcd = $2557

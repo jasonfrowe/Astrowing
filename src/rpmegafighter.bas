@@ -231,6 +231,10 @@ cold_start
    dim fighters_bcd = $2557        ; BCD version for display (was score_p_bcd)
    dim shield_bcd = $2558          ; BCD version for display (was score_e_bcd)
    
+   ; UI Cache Variables (Bug Fix #3: Optimize plotchars)
+   dim cached_lives = $2572        ; Last rendered player_lives value
+   dim cached_level = $2573        ; Last rendered current_level value
+   
    ; Player High Bytes
    dim px_hi = $2570
    dim py_hi = $2571
@@ -329,6 +333,9 @@ leave_story
     goto init_game
 
 init_game
+     ; Clear any previous screen content (title, story, etc)
+     clearscreen
+     
      ; Stop title music
      gosub StopMusic
      music_ptr_hi = 0 ; Force reset on next PlayMusic call
@@ -341,10 +348,15 @@ init_game
      ; Camera removed (Player Centric)
     
     ; Initialize Lives
-    player_lives = 2
+    player_lives = 3  ; Start with 3 lives (display will show 2 hearts = 2 extra lives)
     
     ; Initialize Level
     current_level = 1
+    
+    ; Initialize UI cache (Bug Fix #3)
+    ; Set to invalid values to force initial draw
+    cached_lives = 255
+    cached_level = 255
     
     ; Initialize Game State
     player_shield = 50
@@ -396,9 +408,15 @@ init_game
    elife[0]=0 : elife[1]=0 : elife[2]=0 : elife[3]=0
    
    gosub init_stars
+   
+   ; Initial UI draw (force first render)
+   gosub draw_lives
+   gosub draw_treasures
+   savescreen  ; Save static UI elements
 
 main_loop
    clearscreen
+   restorescreen  ; Restore static UI (lives, treasures)
    
    ; score_p = cam_x ; DEBUG
    ; score_e = px    ; DEBUG
@@ -506,24 +524,20 @@ main_loop
     ; UI Draw Section - All using scoredigits_8_wide
     ; characterset scoredigits_8_wide
 
-    ; Hearts (Lives) as 'F' (Index 15)
-    if player_lives >= 1 then plotchars 'F' 5 10 11
-    if player_lives >= 2 then plotchars 'F' 5 20 11
-    if player_lives >= 3 then plotchars 'F' 5 30 11
-
-    ; Shield (Left, Green)
+    ; ---- UI Rendering (Optimized) ----
+    
+    ; Lives Display (only update when changed)
+    if player_lives <> cached_lives then gosub draw_lives : savescreen
+    
+    ; Treasures Display (only update when level changes)
+    if current_level <> cached_level then gosub draw_treasures : savescreen
+    
+    ; Dynamic values (update every frame)
+    ; Shield (Left, Green, Palette 3)
     plotvalue scoredigits_8_wide 3 shield_bcd 2 40 0
     
-    ; Fighters Remaining (Right, Red)
+    ; Fighters Remaining (Right, Red, Palette 5)
     plotvalue scoredigits_8_wide 5 fighters_bcd 2 104 0
-
-    ; Draw Treasures based on Level Completion (Index 10/'A')
-    ; Level 1 Done -> Show A (current_level > 1)
-    if current_level > 1 then plotchars 'A' 7 60 0
-    if current_level > 2 then plotchars 'B' 7 68 0
-    if current_level > 3 then plotchars 'C' 7 76 0
-    if current_level > 4 then plotchars 'D' 7 84 0
-    if current_level > 5 then plotchars 'E' 7 92 0
     
     ; DEBUG: Display World Coords Comparison (Player vs Enemy 0)
     ; Zone 1: PxHi ExHi[0] PyHi EyHi[0]
@@ -1127,12 +1141,23 @@ spawn_asteroid
     if temp_acc < 128 then if temp_v < py then ay_hi = ay_hi + 1
     if ay_hi >= 4 then ay_hi = 0
    
-   ; Random Velocity (Slow drift)
-   ; Use asteroid_base_speed
-   rand_val = frame & 1
-   if rand_val = 0 then avx = asteroid_base_speed else temp_v = asteroid_base_speed : avx = 0 - temp_v
-   rand_val = frame & 2
-   if rand_val = 0 then avy = asteroid_base_speed else temp_v = asteroid_base_speed : avy = 0 - temp_v
+   ; Random Velocity using sin/cos lookup tables for varied angles
+   ; Pick random angle (0-15) from frame counter
+   rand_val = frame & 15  ; 0-15 for full angle range
+   
+   ; Use sin_table for X velocity component
+   temp_v = sin_table[rand_val]
+   ; Scale up for faster asteroids: multiply by 2 (shift values are -6..6 → -12..12)
+   ; But 7800Basic doesn't have easy multiply, so just use table directly
+   avx = temp_v
+   
+   ; Use cos_table for Y velocity component  
+   temp_v = cos_table[rand_val]
+   avy = temp_v
+   
+   ; Optionally boost speed based on level or randomness
+   ; Add slight speed variance (50% chance to be 50% faster)
+   if frame & 16 then avx = avx + avx / 2 : avy = avy + avy / 2
    
    return
 
@@ -1264,6 +1289,12 @@ skip_bul_ast
    
    ; Y Bounce
    if temp_acc >= 128 then vy_m = 128 : vy_p = 0 else vy_p = 128 : vy_m = 0
+   
+   ; 3. Push asteroid away to prevent re-collision
+   ; Push asteroid velocity in opposite direction of player bounce
+   ; If player bounced left (vx_m=128), push asteroid right (avx=positive)
+   if temp_w >= 128 then avx = 3 else avx = 253  ; 253 = -3 in signed byte
+   if temp_acc >= 128 then avy = 3 else avy = 253
    
    ; Sound Effect?
    
@@ -1503,7 +1534,7 @@ ay_center
 
 ay_top
    ay_scr = ay
-   if ay_scr < 240 then a_on = 0 : return
+   if ay_scr < 224 then a_on = 0 : return  ; Allow 32px sprite to fully enter (240-16=224 for safety)
 
 ay_valid
    
@@ -1553,10 +1584,10 @@ check_wrap_x_a
       if ax_hi >= 2 then ax_hi = 0
 skip_shift_x_a
    
-   ; Bullets (Screen Spaceish)
-   for iter = 0 to 3
-      if blife[iter] > 0 then bul_x[iter] = bul_x[iter] - temp_bx
-   next
+   ; Player Bullets (Screen Space - Do NOT shift, they have absolute velocity)
+   ; Bullets move independently and are not affected by universe shift
+   
+   ; Enemy Bullets (still shift with world)
    for iter = 0 to 3
       if eblife[iter] > 0 then ebul_x[iter] = ebul_x[iter] - temp_bx
    next
@@ -1604,10 +1635,10 @@ check_wrap_y_a
       if ay_hi >= 4 then ay_hi = 0
 skip_shift_y_a
    
-   ; Bullets
-   for iter = 0 to 3
-      if blife[iter] > 0 then bul_y[iter] = bul_y[iter] - temp_by
-   next
+   ; Player Bullets (Screen Space - No shift needed for independent velocity)
+   ; Bullets already have their own velocity and should not inherit player movement
+   
+   ; Enemy Bullets (still shift with world)
    for iter = 0 to 3
       if eblife[iter] > 0 then ebul_y[iter] = ebul_y[iter] - temp_by
    next
@@ -1620,6 +1651,36 @@ skip_shift_y_a
    next
    
    return
+
+; ---- UI Rendering Subroutines (Bug Fix #3: Optimization) ----
+
+draw_lives
+   ; Update lives display and cache
+   ; Hearts (Lives) as 'F' (Index 15), Palette 5 (Red)
+   ; Draw current lives (savescreen will handle persistence)
+   ; Display hearts as (lives - 1) to show remaining extra lives
+   if player_lives >= 2 then plotchars 'F' 5 10 11
+   if player_lives >= 3 then plotchars 'F' 5 20 11
+   if player_lives >= 4 then plotchars 'F' 5 30 11
+   
+   ; Update cache
+   cached_lives = player_lives
+   return
+
+draw_treasures
+   ; Update treasure display and cache
+   ; Draw Treasures based on Level Completion (Index 10/'A'), Palette 7
+   ; Draw completed level treasures (savescreen will handle persistence)
+   if current_level > 1 then plotchars 'A' 7 60 0
+   if current_level > 2 then plotchars 'B' 7 68 0
+   if current_level > 3 then plotchars 'C' 7 76 0
+   if current_level > 4 then plotchars 'D' 7 84 0
+   if current_level > 5 then plotchars 'E' 7 92 0
+   
+   ; Update cache
+   cached_level = current_level
+   return
+
 
    ; ---- Data Tables (ROM) ----
    ; Boosted max acceleration to 6 (was 3) to fix crawling
@@ -1691,7 +1752,11 @@ skip_draw_enemy
 
 draw_asteroid
    if a_on = 0 then return
-   plotsprite asteroid_M_conv 2 ax_scr ay_scr
+   ; Offset by half height (16px) for proper centering
+   ; Use temp variable to avoid negative values causing syntax errors
+   temp_v = ay_scr
+   if temp_v >= 16 then temp_v = temp_v - 16 else temp_v = 0
+   plotsprite asteroid_M_conv 2 ax_scr temp_v
    return
 
 draw_boss
@@ -1761,6 +1826,7 @@ level_next
    ; Advance to next level
    ; Advance to next level
    current_level = current_level + 1
+   cached_level = current_level  ; Update cache for optimized UI (Bug Fix #3)
    if current_level > 6 then goto you_win_game
    
    ; Reset music to trigger new song selection for this level
@@ -1815,17 +1881,25 @@ restart_level
    prize_active3 = 1
    prize_active4 = 1
    
+   ; Clear screen from level complete/death displays
+   clearscreen
+   
+   ; Redraw and save static UI elements (hearts, treasures)
+   gosub draw_lives
+   gosub draw_treasures
+   savescreen
+   
    ; Reset player position - Segment 1 (Center of 512x512)
    px = 80 : py = 90
    px_hi = 1 : py_hi = 1
    ; Camera removed
    
-   ; Clear enemies
+   ; Clear enemies/bullets/asteroids
    for iter = 0 to 3
       elife[iter] = 0
+      blife[iter] = 0
+      eblife[iter] = 0
    next
-   
-   ; Reset asteroid
    alife = 0
    
    goto main_loop
