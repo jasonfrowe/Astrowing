@@ -1103,7 +1103,7 @@ ast_move_pos_y
    if ay < temp_v then ay_hi = ay_hi + 1
 
 ast_y_done
-   ; Wrap Y (0-3, 4 segments = 1024)
+   ; Wrap Y (0-1, 2 segments = 512)
    if ay_hi = 255 then ay_hi = 1
    if ay_hi >= 2 then ay_hi = 0
    
@@ -1150,18 +1150,14 @@ spawn_asteroid
    rand_val = frame & 15  ; 0-15 for full angle range
    
    ; Use sin_table for X velocity component
-   temp_v = sin_table[rand_val]
+   temp_v = sin_ast[rand_val]
    ; Scale up for faster asteroids: multiply by 2 (shift values are -6..6 → -12..12)
    ; But 7800Basic doesn't have easy multiply, so just use table directly
    avx = temp_v
    
    ; Use cos_table for Y velocity component  
-   temp_v = cos_table[rand_val]
+   temp_v = cos_ast[rand_val]
    avy = temp_v
-   
-   ; Optionally boost speed based on level or randomness
-   ; Add slight speed variance (50% chance to be 50% faster)
-   if frame & 16 then avx = avx + avx / 2 : avy = avy + avy / 2
    
    return
 
@@ -1544,7 +1540,7 @@ ay_center
 
 ay_top
    ay_scr = ay
-   if ay_scr < 224 then a_on = 0 : return  ; Allow 32px sprite to fully enter (240-16=224 for safety)
+   if ay_scr < 224 then a_on = 0 : return  ; Allow 32px sprite to partially enter from bottom wrap
 
 ay_valid
    
@@ -1641,8 +1637,8 @@ next_shift_y_e
 shift_add_y_a
       if ay < temp_v then ay_hi = ay_hi + 1
 check_wrap_y_a
-      if ay_hi = 255 then ay_hi = 3
-      if ay_hi >= 4 then ay_hi = 0
+      if ay_hi = 255 then ay_hi = 1
+      if ay_hi >= 2 then ay_hi = 0
 skip_shift_y_a
    
    ; Player Bullets (Screen Space - No shift needed for independent velocity)
@@ -1700,6 +1696,15 @@ end
 
    data cos_table
    6, 6, 4, 2, 0, 254, 252, 250, 250, 250, 252, 254, 0, 2, 4, 6
+end
+
+   ; Slow Tables for Asteroids (Smooth 1-2 pixel steps)
+   data sin_ast
+   0, 1, 1, 2, 2, 2, 1, 1, 0, 255, 255, 254, 254, 254, 255, 255
+end
+
+   data cos_ast
+   3, 3, 2, 1, 0, 255, 254, 253, 253, 253, 254, 255, 0, 1, 2, 3
 end
    
    ; Player Laser Sound - High-pitched pew for player shots
@@ -1780,11 +1785,7 @@ skip_draw_enemy
 
 draw_asteroid
    if a_on = 0 then return
-   ; Offset by half height (16px) for proper centering
-   ; Use temp variable to avoid negative values causing syntax errors
-   temp_v = ay_scr
-   if temp_v >= 16 then temp_v = temp_v - 16 else temp_v = 0
-   plotsprite asteroid_M_conv 2 ax_scr temp_v
+   plotsprite asteroid_M_conv 2 ax_scr ay_scr
    return
 
 draw_boss
@@ -1971,9 +1972,9 @@ set_level_config
    ; enemy_fire_cooldown: Frames between enemy shots
    ;   Higher = slower fire rate, Lower = rapid fire
    
-   if current_level = 1 then enemy_move_mask = 2 : enemy_fire_cooldown = 60 : asteroid_move_mask = 3 : asteroid_base_speed = 1
-   if current_level = 2 then enemy_move_mask = 1 : enemy_fire_cooldown = 45 : asteroid_move_mask = 1 : asteroid_base_speed = 1
-   if current_level = 3 then enemy_move_mask = 1 : enemy_fire_cooldown = 30 : asteroid_move_mask = 1 : asteroid_base_speed = 1
+   if current_level = 1 then enemy_move_mask = 2 : enemy_fire_cooldown = 60 : asteroid_move_mask = 1 : asteroid_base_speed = 1
+   if current_level = 2 then enemy_move_mask = 1 : enemy_fire_cooldown = 45 : asteroid_move_mask = 0 : asteroid_base_speed = 1
+   if current_level = 3 then enemy_move_mask = 1 : enemy_fire_cooldown = 30 : asteroid_move_mask = 0 : asteroid_base_speed = 1
    if current_level = 4 then enemy_move_mask = 0 : enemy_fire_cooldown = 25 : asteroid_move_mask = 0 : asteroid_base_speed = 1
    if current_level >= 5 then enemy_move_mask = 0 : enemy_fire_cooldown = 20 : asteroid_move_mask = 0 : asteroid_base_speed = 2
    return
