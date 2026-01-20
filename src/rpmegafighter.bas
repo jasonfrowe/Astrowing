@@ -368,7 +368,7 @@ init_game
     player_lives = 3  ; Start with 3 lives (display will show 2 hearts = 2 extra lives)
     
     ; Initialize Level
-    current_level = 1
+    current_level = 6
     
     ; Initialize UI cache (Bug Fix #3)
     ; Set to invalid values to force initial draw
@@ -1903,7 +1903,7 @@ refresh_static_ui
     alphachars ' ABCDEFGHIJKLMNOPQRSTUVWXYZ.!?,"$():'
     
     ; Draw BOSS label
-    plotchars 'BOSS' 5 20 10
+    plotchars 'BOSS' 5 36 11
     
     ; Draw Dollars based on HP
     temp_v = boss_hp / 10
@@ -1913,8 +1913,8 @@ refresh_static_ui
 
     for iter = 0 to temp_v
        if iter >= temp_v then goto skip_dollar
-       temp_w = 60 + iter * 8
-       plotchars '$' 5 temp_w 10
+       temp_w = 72 + iter * 8
+       plotchars '$' 5 temp_w 11
 skip_dollar
     next
 
@@ -2192,27 +2192,27 @@ boss_throw_asteroid
    ; X velocity
    if px_hi = ax_hi then goto same_x_quad_throw
    ; Different X quadrants
-   if px_hi > ax_hi then avx = 2 else avx = 254
+   if px_hi > ax_hi then avx = 8 else avx = 248
    goto calc_y_vel_throw
    
 same_x_quad_throw
    temp_acc = px - ax
    if temp_acc >= 128 then temp_acc = 0 - temp_acc
    if temp_acc < 10 then avx = 0 : goto calc_y_vel_throw
-   if px > ax then avx = 2 else avx = 254
+   if px > ax then avx = 8 else avx = 248
    
 calc_y_vel_throw
    ; Y velocity
    if py_hi = ay_hi then goto same_y_quad_throw
    ; Different Y quadrants
-   if py_hi > ay_hi then avy = 2 else avy = 254
+   if py_hi > ay_hi then avy = 8 else avy = 248
    goto throw_done
    
 same_y_quad_throw
    temp_acc = py - ay
    if temp_acc >= 128 then temp_acc = 0 - temp_acc
    if temp_acc < 10 then avy = 0 : goto throw_done
-   if py > ay then avy = 2 else avy = 254
+   if py > ay then avy = 8 else avy = 248
    
 throw_done
    boss_asteroid_cooldown = 120 ; 2 second cooldown
@@ -2327,6 +2327,9 @@ restart_level
    ; Reset fighters based on current level
    gosub set_level_fighters
    fighters_bcd = converttobcd(fighters_remaining)
+   
+   ; Initialize boss (Level 6) - Only force UI update logic
+   if current_level = 6 then cached_boss_hp = 255
    
    ; Reset prizes
    prize_active0 = 1
