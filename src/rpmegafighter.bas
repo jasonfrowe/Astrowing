@@ -1172,12 +1172,12 @@ spawn_asteroid
    if rand_val > 5 then return
    
    alife = 1
-   ; Random edge
+   ; Random edge - SPAWN OFF SCREEN
    rand_val = frame & 3
-   if rand_val = 0 then ax = 5 : ay = 90
-   if rand_val = 1 then ax = 155 : ay = 90
-   if rand_val = 2 then ax = 80 : ay = 5
-   if rand_val = 3 then ax = 80 : ay = 175
+   if rand_val = 0 then ax = 230 : ay = 90  ; Left (80-106=-26)
+   if rand_val = 1 then ax = 190 : ay = 90  ; Right (80+110=190)
+   if rand_val = 2 then ax = 80 : ay = 230  ; Top (90-116=-26)
+   if rand_val = 3 then ax = 80 : ay = 220  ; Bottom (90+130=220)
    
     ; Convert to World Coordinates
     ; AX starts as Screen X (5, 155, 80). Center is 80.
