@@ -183,6 +183,10 @@ bul_x3 = var21
 bul_x2 = var20 
 bul_x1 = var19 
 bul_x0 = var18 
+ast_acc_y = $255C
+ 
+ast_acc_x = $255B
+ 
 boss_asteroid_cooldown = $255A
  
 asteroid_timer = $2559

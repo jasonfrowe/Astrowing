@@ -177,6 +177,8 @@
    dim ay_hi = $2556
    dim asteroid_timer = $2559  ; 4-second despawn timer (Safe address)
    dim boss_asteroid_cooldown = $255A ; Cooldown for boss asteroid throws (Safe address)
+   dim ast_acc_x = $255B ; Asteroid sub-pixel accumulator X
+   dim ast_acc_y = $255C ; Asteroid sub-pixel accumulator Y
    
    ; Aliases for plotsprite usage
    dim bul_x0 = var18 : dim bul_x1 = var19 : dim bul_x2 = var20 : dim bul_x3 = var21
@@ -1090,15 +1092,25 @@ update_asteroid
    if alife = 0 then gosub spawn_asteroid
    if alife = 0 then return
    
-   ; Move Asteroid (Variable Speed via Mask)
-   if (frame & asteroid_move_mask) > 0 then return
-   
-   ; Move Asteroid (16-bit)
+   ; Move Asteroid using sub-pixel accumulator for smooth movement
+   ; X Axis - accumulate velocity and only move when overflow
    temp_v = avx
-   if temp_v < 128 then goto ast_move_pos_x
+   if temp_v >= 128 then goto ast_acc_neg_x
    
-   ; Negative X
+   ; Positive X velocity
+   temp_w = ast_acc_x + temp_v
+   ast_acc_x = temp_w & 3 ; Keep fractional part (divide by 4)
+   temp_v = temp_w / 4    ; Integer movement
+   if temp_v = 0 then goto ast_x_done
+   goto ast_move_pos_x
+   
+ast_acc_neg_x
+   ; Negative X velocity
    temp_v = 0 - temp_v
+   temp_w = ast_acc_x + temp_v
+   ast_acc_x = temp_w & 3
+   temp_v = temp_w / 4
+   if temp_v = 0 then goto ast_x_done
    temp_w = ax
    ax = ax - temp_v
    if ax > temp_w then ax_hi = ax_hi - 1
@@ -1113,12 +1125,24 @@ ast_x_done
    if ax_hi = 255 then ax_hi = 1
    if ax_hi >= 2 then ax_hi = 0
 
-   ; Y Axis
+   ; Y Axis - accumulate velocity and only move when overflow
    temp_v = avy
-   if temp_v < 128 then goto ast_move_pos_y
+   if temp_v >= 128 then goto ast_acc_neg_y
    
-   ; Negative Y
+   ; Positive Y velocity
+   temp_w = ast_acc_y + temp_v
+   ast_acc_y = temp_w & 3
+   temp_v = temp_w / 4
+   if temp_v = 0 then goto ast_y_done
+   goto ast_move_pos_y
+   
+ast_acc_neg_y
+   ; Negative Y velocity
    temp_v = 0 - temp_v
+   temp_w = ast_acc_y + temp_v
+   ast_acc_y = temp_w & 3
+   temp_v = temp_w / 4
+   if temp_v = 0 then goto ast_y_done
    temp_w = ay
    ay = ay - temp_v
    if ay > temp_w then ay_hi = ay_hi - 1
@@ -1998,11 +2022,8 @@ skip_draw_enemy
 
 draw_asteroid
    if a_on = 0 then return
-   ; Offset by half height (16px) for proper centering
-   ; Use temp variable to avoid negative values causing syntax errors
-   temp_v = ay_scr
-   if temp_v >= 16 then temp_v = temp_v - 16 else temp_v = 0
-   plotsprite asteroid_M_conv 2 ax_scr temp_v
+   ; Plot at screen position - let hardware handle clipping for partial visibility
+   plotsprite asteroid_M_conv 2 ax_scr ay_scr
    return
 
 draw_boss
