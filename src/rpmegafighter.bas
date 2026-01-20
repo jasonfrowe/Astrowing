@@ -280,7 +280,7 @@ title_release_wait
     alphachars '0123456789ABCDEF'
     characterset scoredigits_8_wide
     plotchars 'ABCDE' 7 60 2
-    plotchars '20260118' 1 84 11
+    plotchars '20260119' 1 84 11
     
     
     ; Play Music
@@ -309,16 +309,16 @@ story_loop
     
     ; Premise (Zones 0-11)
     plotchars 'YOU ARE ON A MISSION' 1 0 1
-    plotchars 'TO RETRIEVE RELICS' 1 0 2 ; Palette 0 (Grey)
-    plotchars 'THAT POWER UP YOUR' 1 0 3
-    plotchars 'SHIP' 1 0 4
+    plotchars 'TO RETRIEVE RELICS'   1 0 2 ; Palette 0 (Grey)
+    plotchars 'THAT POWER UP YOUR'   1 0 3
+    plotchars 'SHIP'                 1 0 4
     
-    plotchars 'EACH ARTIFACT WILL' 0 0 6
-    plotchars 'INCREASE YOUR POWER' 0 0 7
+    plotchars 'EACH ARTIFACT WILL'   0 0 6
+    plotchars 'INCREASE YOUR POWER'  0 0 7
     
-    plotchars 'DESTROY ENEMY WAVES' 1 0 9
-    plotchars 'TO GET EACH RELIC' 1 0 10
-    plotchars 'AND DEFEAT EVIL' 1 0 11
+    plotchars 'DESTROY ENEMY WAVES'  1 0 9
+    plotchars 'TO GET EACH RELIC'    1 0 10
+    plotchars 'AND DEFEAT EVIL'      1 0 11
     
     ; Play Music (Continue from Title)
     gosub PlayMusic
@@ -1218,7 +1218,13 @@ spawn_asteroid
    
    ; Optionally boost speed based on level or randomness
    ; Add slight speed variance (50% chance to be 50% faster)
+   ; Optionally boost speed based on level or randomness
+   ; Add slight speed variance (50% chance to be 50% faster)
    if frame & 16 then avx = avx + avx / 2 : avy = avy + avy / 2
+   
+   ; Upper Level Speed Boost (Level 3+)
+   ; Double velocity to match boss speed (~2px/frame)
+   if current_level >= 3 then avx = avx + avx : avy = avy + avy
    
    return
 
@@ -2235,11 +2241,11 @@ level_complete
    ; Reward Logic
    plotchars 'REWARD:' 0 20 4
    
-   if current_level = 1 then plotchars 'INCREASED FIREPOWER' 1 0 6
-   if current_level = 2 then plotchars '  INCREASED SPEED'   1 0 6
-   if current_level = 3 then plotchars '   MAX HEALTH UP'    1 0 6
-   if current_level = 4 then plotchars '  FASTER RECHARGE'   1 0 6
-   if current_level = 5 then plotchars '    EXTRA LIFE'      1 0 6
+   if current_level = 1 then plotchars 'INCREASED FIREPOWER' 1 4 6
+   if current_level = 2 then plotchars 'INCREASED SPEED'     1 20 6
+   if current_level = 3 then plotchars 'MAX HEALTH UP'       1 28 6
+   if current_level = 4 then plotchars 'FASTER RECHARGE'     1 20 6
+   if current_level = 5 then plotchars 'EXTRA LIFE'          1 40 6
    
    ; Draw Prize Icon
    characterset scoredigits_8_wide
@@ -2287,11 +2293,10 @@ level_next
    gosub StopMusic
    music_ptr_hi = 0
    
-   ; Partial shield refill (diminishes each level)
-   temp_v = 50 - (current_level * 10)
-   if temp_v < 0 then temp_v = 0
-   player_shield = player_shield + temp_v
-   if player_shield > 99 then player_shield = 99
+   ; Shield Refill Logic
+   ; No refill by default. Only MAX HEALTH UP reward gives full shield.
+   ; Level 3 reward is MAX HEALTH UP, so entering Level 4 grants it.
+   if current_level = 4 then player_shield = 99
    shield_bcd = converttobcd(player_shield)
    
    BACKGRND=$00
@@ -2338,8 +2343,17 @@ lose_life
 dying_wait_release
    if joy0fire0 then goto dying_wait_release
    
+   screen_timer = 30 ; 30 second timeout
+   frame = 0
+   
    ; Wait for button press to restart
 dying_wait_press
+   drawscreen ; Keep generating VBLANK for timing
+   
+   frame = frame + 1
+   if frame >= 60 then frame = 0 : screen_timer = screen_timer - 1
+   if screen_timer = 0 then goto title_loop ; Timeout to title
+   
    if !joy0fire0 then goto dying_wait_press
    
    goto restart_level
@@ -2351,6 +2365,9 @@ restart_level
    if current_level >= 4 then temp_v = 99
    player_shield = temp_v
    shield_bcd = converttobcd(temp_v)
+   
+restart_level_common
+   ; Common reset logic (used by init_level too)
    
    ; Reset fighters based on current level
    gosub set_level_fighters
@@ -2399,14 +2416,11 @@ init_level
    ; Set level difficulty (speed/fire rate)
    gosub set_level_config
    
-   ; Reset prizes
-   prize_active0 = 1
-   prize_active1 = 1
    prize_active2 = 1
    prize_active3 = 1
    prize_active4 = 1
    
-   goto restart_level
+   goto restart_level_common
 
 set_level_fighters
    ; Set fighter count based on level
@@ -2449,10 +2463,13 @@ you_win_release
    if joy0fire0 then goto you_win_release
    
    ; Now wait for new press
-   screen_timer = 250
+   screen_timer = 30 ; 30 Seconds
+   frame = 0
 you_win_wait
-   screen_timer = screen_timer - 1
+   frame = frame + 1
+   if frame >= 60 then frame = 0 : screen_timer = screen_timer - 1
    if screen_timer = 0 then goto cold_start
+   
    drawscreen
    if !joy0fire0 then goto you_win_wait
    goto cold_start
@@ -2476,9 +2493,9 @@ you_lose
    characterset alphabet_8_wide
    alphachars ' ABCDEFGHIJKLMNOPQRSTUVWXYZ.!?,"$():'
    
-   plotchars 'DO NOT GIVE UP' 1 30 4
-   plotchars 'TRY AGAIN' 0 1 6
-   plotchars 'YOUR FATE AWAITS' 1 1 8
+   plotchars 'DO NOT GIVE UP'   1 24 4
+   plotchars 'TRY AGAIN'        0 44 6
+   plotchars 'YOUR FATE AWAITS' 1 16 8
    
    drawscreen
    
