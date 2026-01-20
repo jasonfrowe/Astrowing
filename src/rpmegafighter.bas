@@ -288,15 +288,41 @@ title_release_wait
     
     drawscreen
     
-    if joy0fire0 then goto story_loop
+    ; Hue Cycle Animation (Safe calculation)
+    ; C1 (Base C, Lum 8)
+    temp_acc = frame / 4
+    temp_v = (12 + temp_acc) & 15
+    temp_v = (temp_v * 16) + 8
+    P7C1 = temp_v
+    
+    ; C2 (Base 4, Lum 6)
+    temp_v = (4 + temp_acc) & 15
+    temp_v = (temp_v * 16) + 6
+    P7C2 = temp_v
+    
+    ; C3 (Base 1, Lum 12[C])
+    temp_v = (1 + temp_acc) & 15
+    temp_v = (temp_v * 16) + 12
+    P7C3 = temp_v
+
+    if joy0fire0 then goto restore_pal_story
     
     ; Timeout Logic (30 Seconds)
     ; Use frame counter to tick seconds
     frame = frame + 1
+    if switchreset then goto restore_pal_game
     if frame >= 60 then frame = 0 : screen_timer = screen_timer - 1
-    if screen_timer = 0 then goto init_game
+    if screen_timer = 0 then goto restore_pal_game
     
     goto title_loop
+
+restore_pal_story
+   P7C1=$C8: P7C2=$46: P7C3=$1C
+   goto story_loop
+
+restore_pal_game
+   P7C1=$C8: P7C2=$46: P7C3=$1C
+   goto init_game
 
 story_loop
     screen_timer = 30 ; 30s timeout
@@ -443,6 +469,8 @@ main_loop
 
    ; ---- Frame Counter ----
    frame = frame + 1
+   
+   if switchreset then goto cold_start
 
    ; ---- Rotation Control ----
    if rot_timer > 0 then rot_timer = rot_timer - 1
@@ -1019,17 +1047,17 @@ spawn_ebul
    ebul_y[temp_acc] = temp_w
    
    ; Aim at player (already in screen space)
-   ; Speed set to 3px/frame
+   ; Speed set to 4px/frame
    ; temp_bx = delta X
    temp_bx = px_scr + 8 ; Target Center Screen X
    temp_bx = temp_bx - temp_v ; Delta Screen X
    
-   if temp_bx >= 128 then ebul_vx[temp_acc] = 253 : temp_bx = 0 - temp_bx else ebul_vx[temp_acc] = 3
+   if temp_bx >= 128 then ebul_vx[temp_acc] = 252 : temp_bx = 0 - temp_bx else ebul_vx[temp_acc] = 4
    
    temp_by = py_scr + 8 ; Target Center Screen Y
    temp_by = temp_by - temp_w ; Delta Screen Y
 
-   if temp_by >= 128 then ebul_vy[temp_acc] = 253 : temp_by = 0 - temp_by else ebul_vy[temp_acc] = 3
+   if temp_by >= 128 then ebul_vy[temp_acc] = 252 : temp_by = 0 - temp_by else ebul_vy[temp_acc] = 4
    
    ; 8-way logic
    temp_v = temp_bx / 2
@@ -2351,6 +2379,7 @@ dying_wait_press
    drawscreen ; Keep generating VBLANK for timing
    
    frame = frame + 1
+   if switchreset then goto cold_start
    if frame >= 60 then frame = 0 : screen_timer = screen_timer - 1
    if screen_timer = 0 then goto title_loop ; Timeout to title
    
@@ -2467,6 +2496,7 @@ you_win_release
    frame = 0
 you_win_wait
    frame = frame + 1
+   if switchreset then goto cold_start
    if frame >= 60 then frame = 0 : screen_timer = screen_timer - 1
    if screen_timer = 0 then goto cold_start
    
@@ -2508,6 +2538,7 @@ you_lose_wait
    drawscreen ; Sync to 60Hz
    
    frame = frame + 1
+   if switchreset then goto game_over_restore
    if frame >= 60 then frame = 0 : screen_timer = screen_timer - 1
    if screen_timer = 0 then goto game_over_restore
    
