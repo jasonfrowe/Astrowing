@@ -254,6 +254,10 @@ cold_start
    ; Global Coords Only
 
 title_loop
+    ; Wait for button release first (prevent skipping from game over/win screens)
+title_release_wait
+    if joy0fire0 then goto title_release_wait
+    
     clearscreen
     ; Reset critical sprite state to hide game objects
     alife=0
@@ -362,7 +366,7 @@ init_game
     player_lives = 3  ; Start with 3 lives (display will show 2 hearts = 2 extra lives)
     
     ; Initialize Level
-    current_level = 6
+    current_level = 1
     
     ; Initialize UI cache (Bug Fix #3)
     ; Set to invalid values to force initial draw
@@ -380,6 +384,7 @@ init_game
     
     ; Initialize boss (Level 6)
     if current_level = 6 then gosub init_boss
+    if current_level = 6 then fighters_remaining = 99 : fighters_bcd = converttobcd(99)
     
     ; Initialize prize system (all active)
     prize_active0 = 1
@@ -1128,9 +1133,9 @@ ast_y_done
    if ay_hi = 255 then ay_hi = 1
    if ay_hi >= 2 then ay_hi = 0
    
-   ; Despawn Timer (only if timer is active)
-   if asteroid_timer > 0 then asteroid_timer = asteroid_timer - 1
-   if asteroid_timer = 0 then if a_on = 0 then alife = 0
+   ; Despawn Timer (only for boss-thrown asteroids in Level 6)
+   if current_level = 6 then if asteroid_timer > 0 then asteroid_timer = asteroid_timer - 1
+   if current_level = 6 then if asteroid_timer = 0 then if a_on = 0 then alife = 0
    
    return
 
@@ -1222,9 +1227,9 @@ check_collisions
          elife[temp_acc] = 18 ; Start Explosion (18 frames)
          playsfx sfx_damage 0 ; Destruction sound
          
-         ; Decrement Fighters Remaining
-         fighters_remaining = fighters_remaining - 1
-         fighters_bcd = converttobcd(fighters_remaining)
+         ; Decrement Fighters Remaining (not during boss level)
+         if current_level <> 6 then fighters_remaining = fighters_remaining - 1
+         if current_level <> 6 then fighters_bcd = converttobcd(fighters_remaining)
          if fighters_remaining <= 0 then goto coll_done
          
          goto skip_enemy_coll ; Bullet used up
@@ -1259,9 +1264,9 @@ skip_bullet_coll
       if player_shield < 2 then player_shield = 0 else player_shield = player_shield - 2
       shield_bcd = converttobcd(player_shield)
       
-      ; Also decrement fighter count (fighter destroyed)
-      fighters_remaining = fighters_remaining - 1
-      fighters_bcd = converttobcd(fighters_remaining)
+      ; Also decrement fighter count (fighter destroyed) - not during boss level
+      if current_level <> 6 then fighters_remaining = fighters_remaining - 1
+      if current_level <> 6 then fighters_bcd = converttobcd(fighters_remaining)
       if fighters_remaining <= 0 then goto coll_done
       
       ; Check for death
@@ -1357,9 +1362,9 @@ check_enemy_ast_coll
       playsfx sfx_damage 0 ; Destruction sound (Enemy hits Asteroid)
       ; Grant points?
       
-      ; Decrement fighter count
-      fighters_remaining = fighters_remaining - 1
-      fighters_bcd = converttobcd(fighters_remaining)
+      ; Decrement fighter count - not during boss level
+      if current_level <> 6 then fighters_remaining = fighters_remaining - 1
+      if current_level <> 6 then fighters_bcd = converttobcd(fighters_remaining)
       if fighters_remaining <= 0 then goto coll_done
 
 skip_e_ast
@@ -2023,9 +2028,19 @@ boss_spawn_retry
    boss_y = rand
    boss_y_hi = rand & 1 
    
-   ; Check distance from player (Approximation)
-   ; If in same High Byte quadrant, Boss is too close/on-screen.
-   if boss_x_hi = px_hi && boss_y_hi = py_hi then goto boss_spawn_retry
+   ; Check distance from player - must be far enough away
+   ; Different quadrant OR far enough in same quadrant
+   if boss_x_hi <> px_hi then goto boss_pos_ok
+   if boss_y_hi <> py_hi then goto boss_pos_ok
+   
+   ; Same quadrant - check distance (must be > 100 pixels away)
+   temp_v = boss_x - px
+   if temp_v >= 128 then temp_v = 0 - temp_v
+   if temp_v < 100 then goto boss_spawn_retry
+   
+   temp_v = boss_y - py
+   if temp_v >= 128 then temp_v = 0 - temp_v
+   if temp_v < 100 then goto boss_spawn_retry
 
 boss_pos_ok
    bvx = 0   ; Stationary
@@ -2152,23 +2167,31 @@ boss_throw_asteroid
    if temp_v < boss_y then ay_hi = ay_hi + 1
    if ay_hi >= 2 then ay_hi = 0
    
-   ; Aim at player
+   ; Aim at player - simple direction-based approach
+   ; X velocity
    if px_hi = ax_hi then goto same_x_quad_throw
-   if px_hi > ax_hi then avx = 3 else avx = 253
+   ; Different X quadrants
+   if px_hi > ax_hi then avx = 2 else avx = 254
    goto calc_y_vel_throw
    
 same_x_quad_throw
    temp_acc = px - ax
-   if temp_acc >= 128 then avx = 253 else avx = 3
+   if temp_acc >= 128 then temp_acc = 0 - temp_acc
+   if temp_acc < 10 then avx = 0 : goto calc_y_vel_throw
+   if px > ax then avx = 2 else avx = 254
    
 calc_y_vel_throw
+   ; Y velocity
    if py_hi = ay_hi then goto same_y_quad_throw
-   if py_hi > ay_hi then avy = 3 else avy = 253
+   ; Different Y quadrants
+   if py_hi > ay_hi then avy = 2 else avy = 254
    goto throw_done
    
 same_y_quad_throw
    temp_acc = py - ay
-   if temp_acc >= 128 then avy = 253 else avy = 3
+   if temp_acc >= 128 then temp_acc = 0 - temp_acc
+   if temp_acc < 10 then avy = 0 : goto throw_done
+   if py > ay then avy = 2 else avy = 254
    
 throw_done
    boss_asteroid_cooldown = 120 ; 2 second cooldown
