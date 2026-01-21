@@ -2444,6 +2444,11 @@ restart_level_common
       eblife[iter] = 0
    next
    alife = 0
+   ; Force asteroid to safe off-screen position (Page 0, Center)
+   ax = 128 : ax_hi = 0
+   ay = 128 : ay_hi = 0
+   avx = 0 : avy = 0
+   ax_scr = 240 : ay_scr = 240
    
    goto main_loop
 
