@@ -17,10 +17,8 @@ try:
     img_score = Image.open(score_path)
     
     # Dimensions
-    # Height: Crop to 8px (y=1 to y=9 from original 17px height)
-    TARGET_H = 8
-    CROP_Y1 = 1
-    CROP_Y2 = 9
+    # Height: Keep original 17px
+    TARGET_H = 17
     
     # 1. Space: Alpha (0, 8)
     # 2. 0-9: Score (0, 80)
@@ -32,19 +30,19 @@ try:
     # Define boxes as (left, upper, right, lower)
     
     # Space
-    c_space = img_alpha.crop((0, CROP_Y1, 8, CROP_Y2))
+    c_space = img_alpha.crop((0, 0, 8, TARGET_H))
     
     # Numbers 0-9
-    c_nums = img_score.crop((0, CROP_Y1, 80, CROP_Y2))
+    c_nums = img_score.crop((0, 0, 80, TARGET_H))
     
     # Letters A-Z
-    c_letters = img_alpha.crop((8, CROP_Y1, 216, CROP_Y2))
+    c_letters = img_alpha.crop((8, 0, 216, TARGET_H))
     
     # Punctuation
-    c_punct = img_alpha.crop((216, CROP_Y1, 288, CROP_Y2))
+    c_punct = img_alpha.crop((216, 0, 288, TARGET_H))
     
     # Prizes (A-F from scoredigits)
-    c_prizes = img_score.crop((80, CROP_Y1, 128, CROP_Y2))
+    c_prizes = img_score.crop((80, 0, 128, TARGET_H))
     
     # Assembly
     # Order: Space + Nums + Letters + Punct + Prizes

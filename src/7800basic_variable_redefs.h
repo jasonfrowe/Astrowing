@@ -121,6 +121,8 @@ py_hi = $2571
  
 px_hi = $2570
  
+cached_shield = $2575
+ 
 cached_boss_hp = $2574
  
 cached_level = $2573

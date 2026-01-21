@@ -250,7 +250,7 @@ reset_release_wait
    dim cached_lives = $2572        ; Last rendered player_lives value
    dim cached_level = $2573        ; Last rendered current_level value
    dim cached_boss_hp = $2574      ; Last rendered boss_hp value
-   
+    dim cached_shield = $2575       ; Last rendered shield value   
    ; Player High Bytes
    dim px_hi = $2570
    dim py_hi = $2571
@@ -544,7 +544,9 @@ main_loop
     
     ; Dynamic values (update every frame)
     ; Shield (Left, Green, Palette 3)
-    plotvalue unified_font 3 shield_bcd 2 40 0
+    ; Shield (Left, Green, Palette 3)
+    ; Now handled by refresh_static_ui with progress bar
+    if player_shield <> cached_shield then gosub refresh_static_ui
     
     ; Fighters Remaining (Right, Red, Palette 5)
     plotvalue unified_font 5 fighters_bcd 2 104 0
@@ -1831,12 +1833,12 @@ skip_shift_y_boss
 
 draw_lives
    ; Update lives display and cache
-   ; Hearts (Lives) as 'F' (Index 15), Palette 5 (Red)
+   ; Hearts (Lives) as '>', Palette 5 (Red)
    ; Draw current lives (savescreen will handle persistence)
    ; Display hearts as (lives - 1) to show remaining extra lives
-   if player_lives >= 2 then plotchars 'F' 5 10 11
-   if player_lives >= 3 then plotchars 'F' 5 20 11
-   if player_lives >= 4 then plotchars 'F' 5 30 11
+   if player_lives >= 2 then plotchars '>' 5 10 11
+   if player_lives >= 3 then plotchars '>' 5 20 11
+   if player_lives >= 4 then plotchars '>' 5 30 11
    
    ; Update cache
    cached_lives = player_lives
@@ -1846,11 +1848,11 @@ draw_treasures
    ; Update treasure display and cache
    ; Draw Treasures based on Level Completion (Index 10/'A'), Palette 7
    ; Draw completed level treasures (savescreen will handle persistence)
-   if current_level > 1 then plotchars 'A' 7 60 0
-   if current_level > 2 then plotchars 'B' 7 68 0
-   if current_level > 3 then plotchars 'C' 7 76 0
-   if current_level > 4 then plotchars 'D' 7 84 0
-   if current_level > 5 then plotchars 'E' 7 92 0
+   if current_level > 1 then plotchars '*' 7 60 0
+   if current_level > 2 then plotchars '+' 7 68 0
+   if current_level > 3 then plotchars '-' 7 76 0
+   if current_level > 4 then plotchars '/' 7 84 0
+   if current_level > 5 then plotchars '<' 7 92 0
    
    ; Update cache
    cached_level = current_level
@@ -1872,17 +1874,17 @@ refresh_static_ui
     plotchars 'BOSS' 5 36 11
     
     ; Draw Dollars based on HP
-    temp_v = boss_hp / 10
-    if temp_v = 0 && boss_hp > 0 then temp_v = 1
+    ; Draw Dollar Bar (Using Graph Logic)
+    ; Scale: val * 2 / 3
+    temp_v = boss_hp * 2
+    temp_v = temp_v / 3
     
-    if temp_v = 0 then goto skip_boss_loop
-
-    for iter = 0 to temp_v
-       if iter >= temp_v then goto skip_dollar
-       temp_w = 72 + iter * 8
-       plotchars '$' 5 temp_w 11
-skip_dollar
-    next
+    temp_bx = 72
+    temp_by = 11
+    temp_w = 5
+    gosub draw_bar_graph
+    
+skip_boss_loop
 
 skip_boss_loop
 
@@ -1906,6 +1908,7 @@ skip_boss_ui
     cached_lives = player_lives
     cached_level = current_level
     cached_boss_hp = boss_hp
+    cached_shield = player_shield
     
     savescreen
     return
