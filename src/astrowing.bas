@@ -1324,7 +1324,7 @@ check_enemy_ast_coll
    ; 5. Enemy vs Asteroid (Strategic Kill)
    for iter = 0 to 3
       if elife[iter] = 0 then goto skip_e_ast
-      if elife[iter] > 1 then goto skip_e_ast ; Don't hit if already exploding
+      if elife[iter] > 1 then goto skip_e_ast ; Do not hit if already exploding
       if e_on[iter] = 0 then goto skip_e_ast
       
       ; X Check
