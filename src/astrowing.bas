@@ -41,12 +41,8 @@
    incgraphic graphics/Boss_conv.png
    
    ; Define custom mapping for scoredigits (0-9 + A-F)
-   alphachars '0123456789ABCDEF'
-   incgraphic graphics/scoredigits_8_wide.png 160A
-
-   ; Import Alphabet for Title Cards
-   alphachars ' ABCDEFGHIJKLMNOPQRSTUVWXYZ.!?,"$():'
-   incgraphic graphics/alphabet_8_wide.png 160A
+   incgraphic graphics/unified_font.png 160A 0 1 2 3
+   alphachars ' 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ.!?,"$():*+-/<>'
    
    ; ---- Dimensions ----
    dim px = var0
@@ -279,15 +275,9 @@ title_release_wait
     plotbanner title_screen_conv 7 0 46
     
     ; Version Text (Bottom of Screen - Zone 11)
-    characterset alphabet_8_wide
-    ; Corrected alphachars based on user feedback
-    alphachars ' ABCDEFGHIJKLMNOPQRSTUVWXYZ.!?,"$():'
+    characterset unified_font
     plotchars 'VERSION' 1 20 11
-    
-    ; Restore scoredigits just in case
-    alphachars '0123456789ABCDEF'
-    characterset scoredigits_8_wide
-    plotchars 'ABCDE' 7 60 2
+    plotchars '*+-/<' 7 60 2
     plotchars '20260120' 1 84 11
     
     
@@ -536,8 +526,8 @@ main_loop
     ; ---- Lives Display (Top Left) ----
     ; Using Palette 5 (Red) per user request
     ; Unrolled Loop for 3 Hearts (Fast)
-    ; UI Draw Section - All using scoredigits_8_wide
-    ; characterset scoredigits_8_wide
+    ; UI Draw Section - All using unified_font
+    ; characterset unified_font
 
     ; ---- UI Rendering (Optimized) ----
     
@@ -554,41 +544,43 @@ main_loop
     
     ; Dynamic values (update every frame)
     ; Shield (Left, Green, Palette 3)
-    plotvalue scoredigits_8_wide 3 shield_bcd 2 40 0
+    plotvalue unified_font 3 shield_bcd 2 40 0
     
     ; Fighters Remaining (Right, Red, Palette 5)
-    plotvalue scoredigits_8_wide 5 fighters_bcd 2 104 0
+    plotvalue unified_font 5 fighters_bcd 2 104 0
     
     ; DEBUG: Display World Coords Comparison (Player vs Enemy 0)
     ; Zone 1: PxHi ExHi[0] PyHi EyHi[0]
     ; a = converttobcd(px_hi)
-    ; plotvalue scoredigits_8_wide 2 a 1 10 9
+    ; plotvalue unified_font 2 a 1 10 9
     
     ; b = converttobcd(ex_hi) ; ex_hi[0]
-    ; plotvalue scoredigits_8_wide 2 b 1 40 9
+    ; plotvalue unified_font 2 b 1 40 9
     
     ; c = converttobcd(py_hi)
-    ; plotvalue scoredigits_8_wide 2 c 1 80 9
+    ; plotvalue unified_font 2 c 1 80 9
     
     ; d = converttobcd(ey_hi) ; ey_hi[0]
-    ; plotvalue scoredigits_8_wide 2 d 1 110 9
+    ; plotvalue unified_font 2 d 1 110 9
 
     ; Row 2: Low Bytes (Px Ex[0] Py Ey[0])
     ; v = px 
     ; e   = converttobcd(v)
-    ; plotvalue scoredigits_8_wide 3 e 2 10 10
+    ; plotvalue unified_font 3 e 2 10 10
     
     ; v = ex
     ; f = converttobcd(v)
-    ; plotvalue scoredigits_8_wide 3 f 2 40 10
+    ; v = ex
+    ; f = converttobcd(v)
+    ; plotvalue unified_font 3 f 2 40 10
     
     ; w = py
     ; e = converttobcd(w)
-    ; plotvalue scoredigits_8_wide 3 e 2 80 10
+    ; plotvalue unified_font 3 e 2 80 10
     
     ; w = ey
     ; f = converttobcd(w)
-    ; plotvalue scoredigits_8_wide 3 f 2 110 10
+    ; plotvalue unified_font 3 f 2 110 10
 
 
     ; Use cached screen position
@@ -1868,17 +1860,14 @@ refresh_static_ui
     clearscreen
     
     ; 1. Draw Lives (Standard Scoredigits)
-    characterset scoredigits_8_wide
-    alphachars '0123456789ABCDEF'
+    ; 1. Draw Lives (Standard Scoredigits)
     gosub draw_lives
     gosub draw_treasures
     
     ; 2. Draw Boss Health (Alphabet)
+    ; 2. Draw Boss Health (Alphabet)
     if current_level <> 6 then goto skip_boss_ui
-    
-    characterset alphabet_8_wide
-    alphachars ' ABCDEFGHIJKLMNOPQRSTUVWXYZ.!?,"$():'
-    
+        
     ; Draw BOSS label
     plotchars 'BOSS' 5 36 11
     
@@ -1898,9 +1887,20 @@ skip_dollar
 skip_boss_loop
 
 skip_boss_ui
+    
+    ; 3. Draw Player Shield (Unified Font Bar)
+    ; Shield 0-100. Max width ~80px (8 blocks)
+    ; Scaling: (shield * 2) / 3 -> 100 becomes 66 pixels
+    temp_v = player_shield * 2
+    temp_v = temp_v / 3
+    
+    temp_bx = 2
+    temp_by = 0
+    temp_w = 3
+    gosub draw_bar_graph
     ; 3. Restore Scoredigits (Safety)
-    characterset scoredigits_8_wide
-    alphachars '0123456789ABCDEF'
+    ; 3. Restore Scoredigits (Safety)
+    ; (No longer needed with unified font)
     
     ; Update all caches since we just redrew everything
     cached_lives = player_lives
@@ -1910,10 +1910,44 @@ skip_boss_ui
     savescreen
     return
 
+draw_bar_graph
+    ; Input: temp_v (pixels), temp_bx (x), temp_by (y), temp_w (pal)
+    ; Uses: iter, temp_acc, temp_v
+    
+    if temp_v = 0 then return
+    
+    ; Full blocks
+    temp_acc = temp_v / 8
+    
+    if temp_acc = 0 then goto draw_bar_remainder
+    
+    ; Loop full blocks
+    for iter = 1 to temp_acc
+        plotchars '$' temp_w temp_bx temp_by
+        temp_bx = temp_bx + 8
+    next
+    
+draw_bar_remainder
+    ; Remainder
+    temp_v = temp_v & 7
+    if temp_v = 0 then return
+    
+    ; Explicit Literal Map
+    if temp_v = 1 then plotchars '(' temp_w temp_bx temp_by
+    if temp_v = 2 then plotchars ')' temp_w temp_bx temp_by
+    if temp_v = 3 then plotchars '.' temp_w temp_bx temp_by
+    if temp_v = 4 then plotchars ',' temp_w temp_bx temp_by
+    if temp_v = 5 then plotchars '!' temp_w temp_bx temp_by
+    if temp_v = 6 then plotchars '?' temp_w temp_bx temp_by
+    if temp_v = 7 then plotchars '"' temp_w temp_bx temp_by
+    
+    return
+
 
    ; ---- Data Tables (ROM) ----
    ; Boosted max acceleration to 6 (was 3) to fix crawling
    data sin_table
+
    0, 2, 3, 4, 4, 4, 3, 2, 0, 254, 253, 252, 252, 252, 253, 254
 end
 
@@ -2192,10 +2226,7 @@ level_complete
    BACKGRND=$00
    
    screen_timer = 30 ; 30s timeout
-   
-   characterset alphabet_8_wide
-   alphachars ' ABCDEFGHIJKLMNOPQRSTUVWXYZ.!?,"$():'
-   
+      
    plotchars 'YOU DID IT' 1 40 2
    
    ; Reward Logic
@@ -2208,14 +2239,12 @@ level_complete
    if current_level = 5 then plotchars 'EXTRA LIFE'          1 40 6
    
    ; Draw Prize Icon
-   characterset scoredigits_8_wide
-   alphachars '0123456789ABCDEF'
    
-   if current_level = 1 then plotchars 'A' 7 80 4
-   if current_level = 2 then plotchars 'B' 7 80 4
-   if current_level = 3 then plotchars 'C' 7 80 4
-   if current_level = 4 then plotchars 'D' 7 80 4
-   if current_level = 5 then plotchars 'E' 7 80 4
+   if current_level = 1 then plotchars '*' 7 80 4
+   if current_level = 2 then plotchars '+' 7 80 4
+   if current_level = 3 then plotchars '-' 7 80 4
+   if current_level = 4 then plotchars '/' 7 80 4
+   if current_level = 5 then plotchars '<' 7 80 4
    
    drawscreen
    
@@ -2234,9 +2263,6 @@ level_complete_wait
    if !joy0fire1 then goto level_complete_wait
 
 level_next_restore
-   ; Restore standard scoredigits mapping just in case
-   alphachars '0123456789ABCDEF'
-   characterset scoredigits_8_wide
 
 level_next
    
@@ -2324,8 +2350,6 @@ dying_wait_press
    temp_val_hi = 7
    plotsprite fighter_explode_07_conv 1 px_scr py_scr
    
-   characterset alphabet_8_wide
-   alphachars ' ABCDEFGHIJKLMNOPQRSTUVWXYZ.!?,"$():'
    plotchars 'SHIP DESTROYED' 1 24 3
    plotchars 'PRESS FIRE'     0 40 7
    
@@ -2337,10 +2361,6 @@ dying_wait_press
    if screen_timer = 0 then goto title_loop ; Timeout to title
    
    if !joy0fire1 then goto dying_wait_press
-   
-   ; Restore Charset
-   alphachars '0123456789ABCDEF'
-   characterset scoredigits_8_wide
    
    goto restart_level
 
@@ -2478,9 +2498,6 @@ you_lose
    
    screen_timer = 30 ; 30s timeout
    
-   characterset alphabet_8_wide
-   alphachars ' ABCDEFGHIJKLMNOPQRSTUVWXYZ.!?,"$():'
-   
    plotchars 'DO NOT GIVE UP'   1 24 4
    plotchars 'TRY AGAIN'        0 44 6
    plotchars 'YOUR FATE AWAITS' 1 16 8
@@ -2503,10 +2520,6 @@ you_lose_wait
    if !joy0fire1 then goto you_lose_wait
 
 game_over_restore
-   ; Restore standard scoredigits mapping just in case
-   alphachars '0123456789ABCDEF'
-   characterset scoredigits_8_wide
-   
    goto cold_start
 
    ; ============================================
