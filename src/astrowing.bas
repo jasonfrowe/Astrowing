@@ -205,8 +205,13 @@
 
 
 cold_start
+   ; Wait for Reset button to be released!
+reset_release_wait
+   if switchreset then goto reset_release_wait
+   
    screen_timer = 30 ; 30s timeout (decremented by frame logic)
    music_active = 0 ; Ensure music state is clean
+
    ; Palette Setup
    P0C1=$26: P0C2=$24: P0C3=$04 ; Background/UI
    P1C1=$C2: P1C2=$C6: P1C3=$CA ; Player Bullets (Green)
@@ -260,7 +265,8 @@ cold_start
 title_loop
     ; Wait for button release first (prevent skipping from game over/win screens)
 title_release_wait
-    if joy0fire1 then goto title_release_wait
+    if joy0fire1 || switchreset then goto title_release_wait
+
     
     clearscreen
     ; Reset critical sprite state to hide game objects
@@ -312,7 +318,12 @@ title_release_wait
     ; Timeout Logic (30 Seconds)
     ; Use frame counter to tick seconds
     frame = frame + 1
-    if switchreset then goto restore_pal_game
+    if !switchreset then goto title_no_reset
+title_reset_wait
+    if switchreset then goto title_reset_wait
+    goto restore_pal_game
+title_no_reset
+
     if frame >= 60 then frame = 0 : screen_timer = screen_timer - 1
     if screen_timer = 0 then goto restore_pal_game
     
