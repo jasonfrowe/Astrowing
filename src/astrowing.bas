@@ -548,7 +548,7 @@ main_loop
     ; Now handled by refresh_static_ui with progress bar
     if player_shield <> cached_shield then gosub refresh_static_ui
     ; Score (Center, Palette 5)
-    plotvalue unified_font 5 score0 6 80 0
+    plotvalue unified_font 0 score0 6 80 0
     
     ; Fighters Remaining (Right, Red, Palette 5)
     plotchars 'E' 5 136 0
