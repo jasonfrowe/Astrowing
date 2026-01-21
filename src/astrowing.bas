@@ -1859,7 +1859,7 @@ skip_boss_ui
     
     temp_bx = 0
     temp_by = 0
-    temp_w = 3
+    temp_w = 5
     gosub draw_bar_graph
     ; 3. Restore Scoredigits (Safety)
     ; 3. Restore Scoredigits (Safety)
@@ -2370,6 +2370,11 @@ restart_level_common
    ; Redraw and save static UI elements (hearts, treasures)
    gosub draw_lives
    gosub draw_treasures
+   
+   ; Force redraw of dynamic elements wiped by clearscreen
+   cached_shield = 255
+   cached_boss_hp = 255
+   
    savescreen
    
    ; Reset player position - Segment 1 (Center of 512x512)
