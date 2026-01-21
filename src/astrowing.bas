@@ -363,6 +363,7 @@ init_game
     
     gosub set_level_config
     
+    score0 = 0
     ; Initialize boss (Level 6)
     if current_level = 6 then gosub init_boss
     if current_level = 6 then fighters_remaining = 99 : fighters_bcd = converttobcd(99)
@@ -546,9 +547,12 @@ main_loop
     ; Shield (Left, Green, Palette 3)
     ; Now handled by refresh_static_ui with progress bar
     if player_shield <> cached_shield then gosub refresh_static_ui
+    ; Score (Center, Palette 5)
+    plotvalue unified_font 5 score0 6 80 0
     
     ; Fighters Remaining (Right, Red, Palette 5)
-    plotvalue unified_font 5 fighters_bcd 2 104 0
+    plotchars 'E' 5 136 0
+    plotvalue unified_font 5 fighters_bcd 2 144 0
 
     ; Use cached screen position
     plotsprite sprite_spaceship1 5 px_scr py_scr shpfr
@@ -1177,6 +1181,7 @@ check_collisions
          
          ; Decrement Fighters Remaining (not during boss level)
          if current_level <> 6 then fighters_remaining = fighters_remaining - 1
+         score0 = score0 + 100
          if current_level <> 6 then fighters_bcd = converttobcd(fighters_remaining)
          if fighters_remaining <= 0 then goto coll_done
          
@@ -1214,6 +1219,7 @@ skip_bullet_coll
       
       ; Also decrement fighter count (fighter destroyed) - not during boss level
       if current_level <> 6 then fighters_remaining = fighters_remaining - 1
+      score0 = score0 + 100
       if current_level <> 6 then fighters_bcd = converttobcd(fighters_remaining)
       if fighters_remaining <= 0 then goto coll_done
       
@@ -1305,7 +1311,7 @@ check_enemy_ast_coll
       ; Hit! Destroy Enemy
       elife[iter] = 18 ; Explode
       playsfx sfx_damage 0 ; Destruction sound (Enemy hits Asteroid)
-      ; Grant points?
+      score0 = score0 + 50
       
       ; Decrement fighter count - not during boss level
       if current_level <> 6 then fighters_remaining = fighters_remaining - 1
@@ -1390,10 +1396,10 @@ skip_ebul_coll
       
       ; Hit!
       blife[iter] = 0
-      if boss_hp < 1 then boss_hp = 0 else boss_hp = boss_hp - 1
-      playsfx sfx_damage 0
-      
-      ; Check for boss death
+       if boss_hp < 1 then boss_hp = 0 else boss_hp = boss_hp - 1
+       playsfx sfx_damage 0
+       score0 = score0 + 10
+  ; Check for boss death
       if boss_hp <= 0 then goto boss_defeated
       
 skip_bul_boss
@@ -1436,6 +1442,7 @@ coll_done
 boss_defeated
    ; Boss destroyed - trigger level complete
    fighters_remaining = 0
+   score0 = score0 + 5000
    goto coll_done
 
 init_stars
@@ -1795,9 +1802,9 @@ draw_lives
    ; Hearts (Lives) as '>', Palette 5 (Red)
    ; Draw current lives (savescreen will handle persistence)
    ; Display hearts as (lives - 1) to show remaining extra lives
-   if player_lives >= 2 then plotchars '>' 5 10 11
-   if player_lives >= 3 then plotchars '>' 5 20 11
-   if player_lives >= 4 then plotchars '>' 5 30 11
+   if player_lives >= 2 then plotchars '>' 5 0 11
+   if player_lives >= 3 then plotchars '>' 5 8 11
+   if player_lives >= 4 then plotchars '>' 5 16 11
    
    ; Update cache
    cached_lives = player_lives
@@ -1807,11 +1814,11 @@ draw_treasures
    ; Update treasure display and cache
    ; Draw Treasures based on Level Completion (Index 10/'A'), Palette 7
    ; Draw completed level treasures (savescreen will handle persistence)
-   if current_level > 1 then plotchars '*' 7 60 0
-   if current_level > 2 then plotchars '+' 7 68 0
-   if current_level > 3 then plotchars '-' 7 76 0
-   if current_level > 4 then plotchars '/' 7 84 0
-   if current_level > 5 then plotchars '<' 7 92 0
+   if current_level > 1 then plotchars '*' 7 120 11
+   if current_level > 2 then plotchars '+' 7 128 11
+   if current_level > 3 then plotchars '-' 7 136 11
+   if current_level > 4 then plotchars '/' 7 144 11
+   if current_level > 5 then plotchars '<' 7 152 11
    
    ; Update cache
    cached_level = current_level
@@ -1850,7 +1857,7 @@ skip_boss_ui
     temp_v = player_shield * 2
     temp_v = temp_v / 3
     
-    temp_bx = 2
+    temp_bx = 0
     temp_by = 0
     temp_w = 3
     gosub draw_bar_graph
@@ -1871,7 +1878,7 @@ draw_bar_graph
     ; Input: temp_v (pixels), temp_bx (x), temp_by (y), temp_w (pal)
     ; Uses: iter, temp_acc, temp_v
     
-    if temp_v = 0 then return
+    ; if temp_v = 0 then return ; removed to allow drawing empty bars
     
     ; Full blocks
     temp_acc = temp_v / 8
@@ -1887,9 +1894,8 @@ draw_bar_graph
 draw_bar_remainder
     ; Remainder
     temp_v = temp_v & 7
-    if temp_v = 0 then return
-    
     ; Explicit Literal Map
+    if temp_v = 0 then plotchars ':' temp_w temp_bx temp_by
     if temp_v = 1 then plotchars '(' temp_w temp_bx temp_by
     if temp_v = 2 then plotchars ')' temp_w temp_bx temp_by
     if temp_v = 3 then plotchars '.' temp_w temp_bx temp_by
@@ -1898,7 +1904,18 @@ draw_bar_remainder
     if temp_v = 6 then plotchars '?' temp_w temp_bx temp_by
     if temp_v = 7 then plotchars '"' temp_w temp_bx temp_by
     
-    return
+    ; Setup for filling empty spots
+    ; Increment x to next block for loop
+    temp_bx = temp_bx + 8
+    temp_acc = temp_acc + 1
+    
+    ; Loop until we reach 9 blocks
+fill_remainder_loop
+    if temp_acc >= 9 then return
+    plotchars ':' temp_w temp_bx temp_by
+    temp_bx = temp_bx + 8
+    temp_acc = temp_acc + 1
+    goto fill_remainder_loop
 
 
    ; ---- Data Tables (ROM) ----
@@ -2186,7 +2203,7 @@ level_complete
    plotchars 'YOU DID IT' 1 40 2
    
    ; Reward Logic
-   plotchars 'REWARD:' 0 20 4
+   plotchars 'REWARD ' 0 20 4
    
    if current_level = 1 then plotchars 'INCREASED FIREPOWER' 1 4 6
    if current_level = 2 then plotchars 'INCREASED SPEED'     1 20 6
