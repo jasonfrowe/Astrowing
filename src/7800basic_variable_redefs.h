@@ -129,8 +129,6 @@ cached_level = $2573
  
 cached_lives = $2572
  
-shield_bcd = $2558
- 
 fighters_bcd = $2557
  
 prize_active4 = $25A9

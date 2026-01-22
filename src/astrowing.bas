@@ -243,7 +243,6 @@ reset_release_wait
    
    ; Cached BCD Variables (Optimization)
    dim fighters_bcd = $2557        ; BCD version for display (was score_p_bcd)
-   dim shield_bcd = $2558          ; BCD version for display (was score_e_bcd)
    
    ; UI Cache Variables (Bug Fix #3: Optimize plotchars)
    dim cached_lives = $2572        ; Last rendered player_lives value
@@ -355,8 +354,7 @@ init_game
     cached_level = 255
     
     ; Initialize Game State
-    player_shield = 50
-    shield_bcd = converttobcd(50)
+    player_shield = 100
     
     fighters_remaining = 20  ; Level 1 starting value
     fighters_bcd = converttobcd(20)
@@ -1223,9 +1221,10 @@ skip_bullet_coll
       elife[iter] = 18 ; Explode
       playsfx sfx_damage 0 ; Crash sound for player-fighter collision
       
-      ; Decrement Shields
-      if player_shield < 2 then player_shield = 0 else player_shield = player_shield - 2
-      shield_bcd = converttobcd(player_shield)
+      ; Decrement Shields (Standard 2)
+      temp_v = 2
+      if player_shield < temp_v then player_shield = 0 else player_shield = player_shield - temp_v
+
       
       ; Also decrement fighter count (fighter destroyed) - not during boss level
       if current_level <> 6 then fighters_remaining = fighters_remaining - 1
@@ -1277,10 +1276,10 @@ skip_bul_ast
    if temp_v >= 22 then goto check_enemy_ast_coll ; Tuned Height ~32+Player (Tight)
    
    ; Hit Player!
-   ; 1. Damage Shield (-10)
-   if player_shield < 10 then player_shield = 0 else player_shield = player_shield - 10
-   shield_bcd = converttobcd(player_shield)
-   if player_shield <= 0 then goto coll_done
+    ; 1. Damage Shield (Base 10)
+    temp_v = 10
+    if player_shield < temp_v then player_shield = 0 else player_shield = player_shield - temp_v
+    if player_shield <= 0 then goto coll_done
    
    ; 2. Bounce Logic (Large bounce to avoid multiple collisions)
    ; If Player is Left of Ast (temp_w < 0 -> >128), Bounce Left.
@@ -1375,9 +1374,9 @@ check_player_ebul
       eblife[iter] = 0
       playsfx sfx_damage 0 ; Harsh damage feedback for player hit
       
-      ; Decrement Shields
-      if player_shield < 1 then player_shield = 0 else player_shield = player_shield - 1
-      shield_bcd = converttobcd(player_shield)
+      ; Decrement Shields (Standard 1)
+      temp_v = 1
+      if player_shield < temp_v then player_shield = 0 else player_shield = player_shield - temp_v
       if player_shield <= 0 then goto coll_done
       
 skip_ebul_coll
@@ -1440,7 +1439,6 @@ skip_bul_boss
    ; Hit Player - Heavy Damage
    playsfx sfx_damage 0
    if player_shield < 20 then player_shield = 0 else player_shield = player_shield - 20
-   shield_bcd = converttobcd(player_shield)
    
    ; Bounce player away
    if px_scr < boss_scr_x then vx_m = 128 : vx_p = 0 else vx_p = 128 : vx_m = 0
@@ -1862,13 +1860,23 @@ refresh_static_ui
 
 skip_boss_ui
     ; 3. Draw Player Shield (Unified Font Bar)
-    ; Shield 0-100. Max width ~80px (8 blocks)
-    ; Scaling: (shield * 2) / 3 -> 100 becomes 66 pixels
-    temp_v = player_shield * 2
-    temp_v = temp_v / 3
+    ; Shield 0-100. Max width 80px (10 blocks)
+    ; Scaling: (shield * 8) / 10 = shield * 4/5
+    ; Better approximation to avoid overflow: shield - (shield / 5)
+    temp_v = player_shield / 5
+    temp_v = player_shield - temp_v
     
+    ; temp_bx = 20 ; Center it slightly? Or Left? 
+    ; User said "bottom left". Left margin 0 or 8?
+    ; Version text was at 20. Collisions?
+    ; Let's put it at 10 to give some padding. Or 0?
     temp_bx = 0
     temp_by = 11
+    temp_w = 3 ; Palette 3 (Green)
+    ; But low health swaps Palette 5 (Spacehsip). Bar uses Pal 3?
+    ; Let's switch bar to Palette 5 to match effect if implied?
+    ; No, user said "linked player palette to shield bar" in Step 370 request context but code used P5. Bar uses P3 (Green).
+    ; Bar should arguably use P5 if "Linked".
     temp_w = 5
     gosub draw_bar_graph
     ; 3. Restore Scoredigits (Safety)
@@ -1901,6 +1909,8 @@ draw_bar_graph
         temp_bx = temp_bx + 8
     next
     
+    if temp_acc >= 10 then return
+    
 draw_bar_remainder
     ; Remainder
     temp_v = temp_v & 7
@@ -1919,9 +1929,9 @@ draw_bar_remainder
     temp_bx = temp_bx + 8
     temp_acc = temp_acc + 1
     
-    ; Loop until we reach 9 blocks
+    ; Loop until we reach 10 blocks
 fill_remainder_loop
-    if temp_acc >= 9 then return
+    if temp_acc >= 10 then return
     plotchars ':' temp_w temp_bx temp_by
     temp_bx = temp_bx + 8
     temp_acc = temp_acc + 1
@@ -2258,13 +2268,6 @@ level_next_restore
    gosub StopMusic
    music_ptr_hi = 0
    
-   ; Shield Refill Logic
-   ; No refill by default. Only MAX HEALTH UP reward gives full shield.
-   ; Level 3 reward is MAX HEALTH UP, so entering Level 4 grants it.
-   if current_level = 4 then player_shield = 99
-   shield_bcd = converttobcd(player_shield)
-   
-   BACKGRND=$00
    goto init_level
 
 lose_life
@@ -2346,10 +2349,7 @@ dying_wait_press
 restart_level
    ; Reset level state after death
    
-   temp_v = 50
-   if current_level >= 4 then temp_v = 99
-   player_shield = temp_v
-   shield_bcd = converttobcd(temp_v)
+   player_shield = 100
    
 restart_level_common
    ; Common reset logic (used by init_level too)
