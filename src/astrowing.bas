@@ -276,8 +276,8 @@ title_release_wait
     ; Version Text (Bottom of Screen - Zone 11)
     characterset unified_font
     plotchars 'VERSION' 1 20 11
-    plotchars '*+-/<' 7 60 2
-    plotchars '20260120' 1 84 11
+    plotchars '*+-/<' 7 60 1
+    plotchars '20260121' 1 84 11
     
     
     ; Play Music
@@ -548,11 +548,11 @@ main_loop
     ; Now handled by refresh_static_ui with progress bar
     if player_shield <> cached_shield then gosub refresh_static_ui
     ; Score (Center, Palette 5)
-    plotvalue unified_font 0 score0 6 80 0
+    plotvalue unified_font 0 score0 6 56 0
     
     ; Fighters Remaining (Right, Red, Palette 5)
-    plotchars 'E' 5 136 0
-    plotvalue unified_font 5 fighters_bcd 2 144 0
+    plotchars 'E' 5 120 0
+    plotvalue unified_font 5 fighters_bcd 2 128 0
 
     ; Use cached screen position
     plotsprite sprite_spaceship1 5 px_scr py_scr shpfr
@@ -1802,9 +1802,9 @@ draw_lives
    ; Hearts (Lives) as '>', Palette 5 (Red)
    ; Draw current lives (savescreen will handle persistence)
    ; Display hearts as (lives - 1) to show remaining extra lives
-   if player_lives >= 2 then plotchars '>' 5 0 11
-   if player_lives >= 3 then plotchars '>' 5 8 11
-   if player_lives >= 4 then plotchars '>' 5 16 11
+   if player_lives >= 2 then plotchars '>' 5 16  0
+   if player_lives >= 3 then plotchars '>' 5 24  0
+   if player_lives >= 4 then plotchars '>' 5 32  0
    
    ; Update cache
    cached_lives = player_lives
@@ -1858,7 +1858,7 @@ skip_boss_ui
     temp_v = temp_v / 3
     
     temp_bx = 0
-    temp_by = 0
+    temp_by = 11
     temp_w = 5
     gosub draw_bar_graph
     ; 3. Restore Scoredigits (Safety)
