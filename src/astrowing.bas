@@ -1845,17 +1845,17 @@ refresh_static_ui
     if current_level <> 6 then goto skip_boss_ui
         
     ; Draw BOSS label
-    plotchars 'BOSS' 5 36 11
+    plotchars 'BOSS' 5 64 10
     
     ; Draw Dollars based on HP
     ; Draw Dollar Bar (Using Graph Logic)
-    ; Scale: val * 2 / 3
-    temp_v = boss_hp * 2
-    temp_v = temp_v / 3
+    ; Scale: (val * 8) / 10 = val - (val/5)
+    temp_v = boss_hp / 5
+    temp_v = boss_hp - temp_v
     
-    temp_bx = 72
-    temp_by = 11
-    temp_w = 5
+    temp_bx = 40
+    temp_by = 10
+    temp_w = 2
     gosub draw_bar_graph
 
 skip_boss_ui
