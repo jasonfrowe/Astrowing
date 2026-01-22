@@ -428,7 +428,7 @@ main_loop
 
    ; ---- Level Start Delay ----
    if screen_timer > 0 then screen_timer = screen_timer - 1
-   if screen_timer > 0 then plotchars 'GET READY' 5 54 8
+   if screen_timer > 0 then plotchars 'GET READY' 5 44 8
 
    
    if switchreset then goto cold_start
@@ -2253,6 +2253,8 @@ level_complete
    if current_level = 3 then plotchars '-' 7 80 4
    if current_level = 4 then plotchars '/' 7 80 4
    if current_level = 5 then plotchars '<' 7 80 4
+
+   plotchars 'PRESS FIRE'     0 40 9
    
    drawscreen
    
@@ -2272,6 +2274,7 @@ level_complete_wait
 
 level_next_restore
    ; Reward Check
+   if current_level = 3 then player_shield = 100
    if current_level = 5 then player_lives = player_lives + 1
 
    ; Advance to next level
