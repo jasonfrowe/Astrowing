@@ -209,6 +209,8 @@ reset_release_wait
    
    screen_timer = 60 ; 1s input delay
    music_active = 0 ; Ensure music state is clean
+   current_song = 1 ; Default to song 1
+
 
    ; Palette Setup
    P0C1=$26: P0C2=$24: P0C3=$04 ; Background/UI
@@ -306,9 +308,16 @@ title_release_wait
 
     if joy0fire1 then goto restore_pal_story
     
-    ; Timeout Logic (30 Seconds)
-    ; Use frame counter to tick seconds
-    frame = frame + 1
+    ; Timeout Logic (30 Seconds) -> Changed to Music Rotation (4 Minutes)
+   ; Use frame counter to tick seconds
+   frame = frame + 1
+   
+   ; Reuse asteroid vars for 16-bit timer (Safety: cleared in init_game)
+   asteroid_timer = asteroid_timer + 1 ; Lo Byte
+   if asteroid_timer = 0 then boss_asteroid_cooldown = boss_asteroid_cooldown + 1 ; Hi Byte
+   
+   if boss_asteroid_cooldown >= 56 then gosub rotate_music
+
     if !switchreset then goto title_no_reset
 title_reset_wait
     if switchreset then goto title_reset_wait
@@ -327,6 +336,17 @@ restore_pal_game
    P7C1=$C8: P7C2=$46: P7C3=$1C
    goto init_game
 
+   goto init_game
+
+rotate_music
+   boss_asteroid_cooldown = 0
+   asteroid_timer = 0
+   
+   if current_song = 1 then current_song = 2 else current_song = 1
+   gosub StopMusic
+   music_ptr_hi = 0
+   gosub PlayMusic
+   return
 
 
 init_game
@@ -905,7 +925,7 @@ try_spawn_enemy
        rand_val = frame & 127
        if rand_val > 5 then goto enemy_logic_done
        
-do_spawn_boss_fighter
+do_spawn_regular_enemy
        
        ; Spawn logic inline
        elife[iter] = 1
@@ -2154,6 +2174,7 @@ attempt_boss_spawn_fighter
    boss_fighter_timer = 30
    return
 
+do_spawn_boss_fighter
    elife[iter] = 1
    evx[iter] = 0 : evy[iter] = 0
    
@@ -2238,13 +2259,15 @@ level_complete
    plotchars 'YOU DID IT' 1 40 2
    
    ; Reward Logic
-   plotchars 'REWARD ' 0 20 4
+   if current_level < 6 then plotchars 'REWARD ' 0 20 4
+   if current_level = 6 then plotchars 'MISSION ' 0 20 4
    
    if current_level = 1 then plotchars 'INCREASED FIREPOWER' 1 4 6
    if current_level = 2 then plotchars 'INCREASED SPEED'     1 20 6
    if current_level = 3 then plotchars 'MAX HEALTH UP'       1 28 6
    if current_level = 4 then plotchars 'FASTER RECHARGE'     1 20 6
    if current_level = 5 then plotchars 'EXTRA LIFE'          1 40 6
+   if current_level = 6 then plotchars 'GALAXY SAVED'        1 32 6
    
    ; Draw Prize Icon
    
@@ -2253,6 +2276,7 @@ level_complete
    if current_level = 3 then plotchars '-' 7 80 4
    if current_level = 4 then plotchars '/' 7 80 4
    if current_level = 5 then plotchars '<' 7 80 4
+   if current_level = 6 then plotchars '<' 7 80 4 ; Human for victory
 
    plotchars 'PRESS FIRE'     0 40 9
    
@@ -2472,6 +2496,14 @@ you_win_game
    gosub StopMusic
    clearscreen
    BACKGRND=$00  ; Black (was Green)
+   
+   ; Celebratory Text
+   plotchars 'VICTORY' 7 52 2
+   plotchars 'THE GALAXY IS SAFE' 1 4 4
+   plotchars 'YOU ARE A HERO' 3 24 6
+   plotchars 'THANKS FOR PLAYING' 5 4 8
+   plotchars 'PRESS FIRE' 0 40 10
+
    ; Flash celebration
    drawscreen
    ; Wait for button release first
@@ -2548,17 +2580,25 @@ PlayMusic
    ; Check if initialized (high byte != 0)
    lda music_ptr_hi
    bne .SetupPtr
-   
-   ; Initialize pointer based on current_level
-   lda current_level
-   cmp #6
-   beq .UseBoss
-   cmp #3
-   beq .UseSong3
-   cmp #1
-   beq .UseSong2
-   cmp #4
-   beq .UseSong2
+      ; Initialize pointer based on current_level and current_song (for rotation)
+    lda current_level
+    bne .NotTitle
+    
+    ; Title Screen (Level 0) - Support Rotation
+    lda current_song
+    cmp #2
+    beq .UseSong2
+    jmp .UseSong1
+
+.NotTitle:
+    cmp #6
+    beq .UseBoss
+    cmp #3
+    beq .UseSong3
+    cmp #1
+    beq .UseSong2
+    cmp #4
+    beq .UseSong2
    
    ; Use Song_01 (Title, Level 2, Level 5)
 .UseSong1:
