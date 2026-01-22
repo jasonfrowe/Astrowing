@@ -2116,75 +2116,56 @@ draw_boss_indicator
    return ; Safely Inside -> Hide Arrow
 
 show_arrow_check_done
+   ; Determine Zone (hi_x, hi_y)
+   if boss_x_hi = 0 then goto zone_0_or_2
+   if boss_y_hi = 0 then goto zone_1
    
-   ; Calculate Direction to Boss (Wrap Aware) - Reuse logic
-   ; X Delta
-   var90 = px - boss_x
-   var91 = px_hi - boss_x_hi
-   if px < boss_x then var91 = var91 - 1
-   
-   ; Center Alignment Offset X: -8 (Match AI logic)
-   temp_v = var90
-   var90 = var90 - 8
-   if var90 > temp_v then var91 = var91 - 1
-   
-   if var91 = 1 then var91 = 255
-   if var91 = 254 then var91 = 0
-   
-   temp_v = var90 
-   if var91 = 255 then temp_v = 0 - var90 ; Mag X
-   
-   ; Y Delta
-   var92 = py - boss_y
-   var93 = py_hi - boss_y_hi
-   if py < boss_y then var93 = var93 - 1
-   
-   ; Center Alignment Offset Y: -24 (Match AI logic)
-   temp_w = var92
-   var92 = var92 - 24
-   if var92 > temp_w then var93 = var93 - 1
-   
-   if var93 = 1 then var93 = 255
-   if var93 = 254 then var93 = 0
-   
-   temp_w = var92
-   if var93 = 255 then temp_w = 0 - var92 ; Mag Y
-   
-   ; Dominant Axis?
-   if temp_v > temp_w then goto hud_draw_x
-   
-   ; Draw Y (Top/Bottom)
-   ; Frame: Up (1) or Down (3)
-   if var93 = 0 then temp_acc = 1 : temp_w = 4 else temp_acc = 3 : temp_w = 180
-   
-   ; Align X (Target X = px_scr - var90)
-   ; var90 is Delta P-B. So B = P - Delta.
-   ; Add +4 to align Arrow Center (8x8) to Target
-   temp_v = px_scr - var90 + 4
-   
-   ; Clamp X (4..150)
-   if temp_v >= 128 then temp_v = 4  ; Handle negative wrapping
-   if temp_v > 150 then temp_v = 150
-   if temp_v < 4 then temp_v = 4
-   
-   goto hud_plot
-   
-hud_draw_x
-   ; Draw X (Left/Right)
-   ; Frame: Left (0) or Right (2)
-   if var91 = 0 then temp_acc = 0 : temp_v = 4 else temp_acc = 2 : temp_v = 150
-   
-   ; Align Y (Target Y = py_scr - var92)
-   ; Add +4 to align Arrow Center
-   temp_w = py_scr - var92 + 4
-   
-   ; Clamp Y (4..180)
-   if temp_w >= 128 then temp_w = 4 ; Handle negative wrapping
-   if temp_w > 180 then temp_w = 180
-   if temp_w < 4 then temp_w = 4
+   ; --- Zone 3 (1,1) ---
+   if boss_x > 160 then if boss_y < 192 then goto z3_right
+   if boss_x < 160 then if boss_y > 192 then goto z3_bottom
+   ; Bottom corner
+   temp_acc = 3 : temp_v = 150 : temp_w = 180 : goto hud_plot_switch
 
-hud_plot
-   plotsprite arrows_01 6 temp_v temp_w temp_acc
+z3_right
+   temp_acc = 2 : temp_v = 150 : temp_w = boss_y : goto z_clamp_y
+z3_bottom
+   temp_acc = 3 : temp_v = boss_x : temp_w = 180 : goto z_clamp_x
+
+zone_1 ; (1,0) Above us?
+   if boss_y > 128 then goto z1_top
+   ; z1_bottom
+   temp_acc = 3 : temp_v = boss_x : temp_w = 180 : goto z_clamp_x
+z1_top
+   temp_acc = 1 : temp_v = boss_x : temp_w = 4 : goto z_clamp_x
+
+zone_0_or_2
+   if boss_y_hi = 1 then goto zone_2
+   
+   ; --- Zone 0 (0,0) Top Left ---
+   temp_acc = 1 : temp_v = 4 : temp_w = 4 : goto hud_plot_switch
+
+zone_2 ; (0,1) Left of us?
+   if boss_x > 128 then goto z2_left
+   ; z2_right
+   temp_acc = 2 : temp_v = 150 : temp_w = boss_y : goto z_clamp_y
+z2_left
+   temp_acc = 0 : temp_v = 4 : temp_w = boss_y : goto z_clamp_y
+
+z_clamp_x
+   if temp_v < 4 then temp_v = 4
+   if temp_v > 150 then temp_v = 150
+   goto hud_plot_switch
+
+z_clamp_y
+   if temp_w < 4 then temp_w = 4
+   if temp_w > 180 then temp_w = 180
+   goto hud_plot_switch
+
+hud_plot_switch
+   if temp_acc = 0 then plotsprite arrows_01 6 temp_v temp_w
+   if temp_acc = 1 then plotsprite arrows_02 6 temp_v temp_w
+   if temp_acc = 2 then plotsprite arrows_03 6 temp_v temp_w
+   if temp_acc = 3 then plotsprite arrows_04 6 temp_v temp_w
    return
 
 init_boss
@@ -2493,13 +2474,15 @@ boss_throw_asteroid
    asteroid_timer = 240 ; 4 seconds at 60fps
    
    ; Position at boss center (32x64 sprite)
-   temp_v = boss_x + 16
+   ; Asteroid M is 16x32. Center: boss_x+16, boss_y+32.
+   ; Spawn asteroid top-left so its center aligns: ax = boss_x+16-8=8, ay = boss_y+32-16=16
+   temp_v = boss_x + 8
    ax = temp_v
    ax_hi = boss_x_hi
    if temp_v < boss_x then ax_hi = ax_hi + 1
    if ax_hi >= 2 then ax_hi = 0
    
-   temp_v = boss_y + 32
+   temp_v = boss_y + 16
    ay = temp_v
    ay_hi = boss_y_hi
    if temp_v < boss_y then ay_hi = ay_hi + 1
@@ -2507,40 +2490,35 @@ boss_throw_asteroid
    
    ; Aim at player (Wrap Aware)
    
-   ; X Delta
+   ; X Delta: (px+8) - (ax+8) = px - ax
    var90 = px - ax
    var91 = px_hi - ax_hi
    if px < ax then var91 = var91 - 1
    
-   ; Center Alignment Offset X: -8
-   temp_v = var90
-   var90 = var90 - 8
-   if var90 > temp_v then var91 = var91 - 1
-   
+   ; Normalize X
    if var91 = 1 then var91 = 255
    if var91 = 254 then var91 = 0
    
    avx = 0
    if var91 = 0 && var90 > 10 then avx = 10
-   
    if var91 = 255 then temp_v = 0 - var90 : if temp_v > 10 then avx = 246
    
-   ; Y Delta
+   ; Y Delta: (py+8) - (ay+16) = py - ay - 8
    var92 = py - ay
    var93 = py_hi - ay_hi
    if py < ay then var93 = var93 - 1
    
-   ; Center Alignment Offset Y: -24
+   ; Apply Y Offset for center-to-center alignment
    temp_v = var92
-   var92 = var92 - 24
+   var92 = var92 - 8
    if var92 > temp_v then var93 = var93 - 1
    
+   ; Normalize Y
    if var93 = 1 then var93 = 255
    if var93 = 254 then var93 = 0
    
    avy = 0
    if var93 = 0 && var92 > 10 then avy = 10
-   
    if var93 = 255 then temp_v = 0 - var92 : if temp_v > 10 then avy = 246
    
    goto throw_done
