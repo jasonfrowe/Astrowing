@@ -1303,12 +1303,12 @@ skip_bul_ast
    temp_w = px_scr - ax_scr
    ; Center-to-center check
    if temp_w >= 128 then temp_v = 0 - temp_w else temp_v = temp_w
-   if temp_v >= 12 then goto check_enemy_ast_coll ; Tuned Width ~16+Player (Tight)
+   if temp_v >= 14 then goto check_enemy_ast_coll ; Widened to 14 (Center Logic)
    
    ; Y Check
    temp_acc = py_scr - ay_scr
    if temp_acc >= 128 then temp_v = 0 - temp_acc else temp_v = temp_acc
-   if temp_v >= 22 then goto check_enemy_ast_coll ; Tuned Height ~32+Player (Tight)
+   if temp_v >= 24 then goto check_enemy_ast_coll ; Widened to 24 (Center Logic)
    
    ; Hit Player!
     ; 1. Damage Shield (Base 10)
@@ -2271,27 +2271,27 @@ boss_throw_asteroid
    ; X velocity
    if px_hi = ax_hi then goto same_x_quad_throw
    ; Different X quadrants
-   if px_hi > ax_hi then avx = 3 else avx = 253 ; Speed 3
+   if px_hi > ax_hi then avx = 5 else avx = 251 ; Speed 5
    goto calc_y_vel_throw
    
 same_x_quad_throw
    temp_acc = px - ax
    if temp_acc >= 128 then temp_acc = 0 - temp_acc
    if temp_acc < 10 then avx = 0 : goto calc_y_vel_throw
-   if px > ax then avx = 3 else avx = 253 ; Speed 3
+   if px > ax then avx = 5 else avx = 251 ; Speed 5
    
 calc_y_vel_throw
    ; Y velocity
    if py_hi = ay_hi then goto same_y_quad_throw
    ; Different Y quadrants
-   if py_hi > ay_hi then avy = 3 else avy = 253 ; Speed 3
+   if py_hi > ay_hi then avy = 5 else avy = 251 ; Speed 5
    goto throw_done
    
 same_y_quad_throw
    temp_acc = py - ay
    if temp_acc >= 128 then temp_acc = 0 - temp_acc
    if temp_acc < 10 then avy = 0 : goto throw_done
-   if py > ay then avy = 3 else avy = 253 ; Speed 3
+   if py > ay then avy = 5 else avy = 251 ; Speed 5
    
 throw_done
    boss_asteroid_cooldown = 120 ; 2 second cooldown
