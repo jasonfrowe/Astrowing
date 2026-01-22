@@ -39,6 +39,11 @@
    incgraphic graphics/fighter_explode_06_conv.png
    incgraphic graphics/fighter_explode_07_conv.png
    incbanner graphics/title_screen_conv.png 160A 0 1 2 3
+
+   incgraphic graphics/arrows_01.png 160A
+   incgraphic graphics/arrows_02.png 160A
+   incgraphic graphics/arrows_03.png 160A
+   incgraphic graphics/arrows_04.png 160A
    
    incgraphic graphics/asteroid_M_conv.png
    incgraphic graphics/Boss_conv.png
@@ -123,6 +128,9 @@
    dim boss_scr_y = $25B9    ; Boss Screen Y (Cached)
    dim boss_on = $25BA       ; Boss Visible Flag
    dim boss_fighter_timer = $25BB ; Timer for fighter spawning
+   dim boss_acc_x = $255D ; Boss Sub-pixel X
+   dim boss_acc_y = $255E ; Boss Sub-pixel Y
+   dim boss_checkpoint = $255F ; Boss Health Gate (0=Full, 1=Half)
    
    ; Safety Buffer 76-79
       ; Starfield Variables (4 stars used)
@@ -369,6 +377,7 @@ init_game
     
     ; Initialize Level
     current_level = 6
+    boss_checkpoint = 0 ; Reset Health Gate
     
     ; Initialize UI cache (Bug Fix #3)
     ; Set to invalid values to force initial draw
@@ -595,6 +604,7 @@ skip_enemy_updates
     gosub draw_enemies
      if alife > 0 then gosub draw_asteroid
      if current_level = 6 then gosub draw_boss
+     if current_level = 6 then gosub draw_boss_indicator
      gosub draw_enemy_bullets
      
      ; Update Music
@@ -1428,13 +1438,13 @@ skip_ebul_coll
       
       ; X Check (Boss is 32px wide)
       temp_v = bul_x[iter] - boss_scr_x
-      temp_v = temp_v - 6 ; Center bullet offset
+      temp_v = temp_v - 16 ; Center boss offset (Width 32 / 2)
       if temp_v >= 128 then temp_v = 0 - temp_v
       if temp_v >= 16 then goto skip_bul_boss ; Half boss width + bullet
       
       ; Y Check (Boss is 64px tall)
       temp_v = bul_y[iter] - boss_scr_y
-      temp_v = temp_v - 6
+      temp_v = temp_v - 32 ; Center boss offset (Height 64 / 2)
       if temp_v >= 128 then temp_v = 0 - temp_v
       if temp_v >= 32 then goto skip_bul_boss ; Half boss height + bullet
       
@@ -1446,6 +1456,10 @@ skip_ebul_coll
        
        ; Check Phase Thresholds (75, 50, 25)
        if boss_hp <= 75 && boss_state = 4 then boss_state = 3 : gosub teleport_boss
+       
+       ; Health Gate Checkpoint
+       if boss_hp <= 50 then boss_checkpoint = 1
+       
        if boss_hp <= 50 && boss_state = 3 then boss_state = 2 : gosub teleport_boss
        if boss_hp <= 25 && boss_state = 2 then boss_state = 1 : gosub teleport_boss
   ; Check for boss death
@@ -2069,11 +2083,124 @@ draw_boss
    plotsprite Boss_conv 6 boss_scr_x boss_scr_y
    return
 
+draw_boss_indicator
+   if boss_state = 0 then return
+   
+   ; Hysteresis Logic: Show arrow if Boss is Off-Screen or Near Edge
+   ; Safe Zone: Center Screen with Margin
+   ; Screen 160x192. Boss 32x64.
+   ; Center X: 80. Boss Center: boss_scr_x + 16.
+   ; Center Y: 96. Boss Center: boss_scr_y + 32.
+   
+   temp_v = 1 ; Default Show
+   
+   if boss_on = 0 then goto show_arrow_check_done
+   
+   ; Check if "Safely Inside" Safe Zone
+   ; Center X: 80. Boss Center: boss_scr_x + 16.
+   temp_acc = boss_scr_x + 16
+   if temp_acc > 80 then temp_w = temp_acc - 80 else temp_w = 80 - temp_acc
+   
+   ; Margin 48 (Safe Zone width 96px centered, X range 32..128)
+   ; If outside margin (>= 48), Show.
+   if temp_w >= 48 then goto show_arrow_check_done
+   
+   ; Check Y
+   ; Center Y: 96. Boss Center: boss_scr_y + 32.
+   temp_acc = boss_scr_y + 32
+   if temp_acc > 96 then temp_w = temp_acc - 96 else temp_w = 96 - temp_acc
+   
+   ; Margin 64 (Safe Zone height 128px centered, Y range 32..160)
+   if temp_w >= 64 then goto show_arrow_check_done
+   
+   return ; Safely Inside -> Hide Arrow
+
+show_arrow_check_done
+   
+   ; Calculate Direction to Boss (Wrap Aware) - Reuse logic
+   ; X Delta
+   var90 = px - boss_x
+   var91 = px_hi - boss_x_hi
+   if px < boss_x then var91 = var91 - 1
+   
+   ; Center Alignment Offset X: -8 (Match AI logic)
+   temp_v = var90
+   var90 = var90 - 8
+   if var90 > temp_v then var91 = var91 - 1
+   
+   if var91 = 1 then var91 = 255
+   if var91 = 254 then var91 = 0
+   
+   temp_v = var90 
+   if var91 = 255 then temp_v = 0 - var90 ; Mag X
+   
+   ; Y Delta
+   var92 = py - boss_y
+   var93 = py_hi - boss_y_hi
+   if py < boss_y then var93 = var93 - 1
+   
+   ; Center Alignment Offset Y: -24 (Match AI logic)
+   temp_w = var92
+   var92 = var92 - 24
+   if var92 > temp_w then var93 = var93 - 1
+   
+   if var93 = 1 then var93 = 255
+   if var93 = 254 then var93 = 0
+   
+   temp_w = var92
+   if var93 = 255 then temp_w = 0 - var92 ; Mag Y
+   
+   ; Dominant Axis?
+   if temp_v > temp_w then goto hud_draw_x
+   
+   ; Draw Y (Top/Bottom)
+   ; Frame: Up (1) or Down (3)
+   if var93 = 0 then temp_acc = 1 : temp_w = 4 else temp_acc = 3 : temp_w = 180
+   
+   ; Align X (Target X = px_scr - var90)
+   ; var90 is Delta P-B. So B = P - Delta.
+   ; Add +4 to align Arrow Center (8x8) to Target
+   temp_v = px_scr - var90 + 4
+   
+   ; Clamp X (4..150)
+   if temp_v >= 128 then temp_v = 4  ; Handle negative wrapping
+   if temp_v > 150 then temp_v = 150
+   if temp_v < 4 then temp_v = 4
+   
+   goto hud_plot
+   
+hud_draw_x
+   ; Draw X (Left/Right)
+   ; Frame: Left (0) or Right (2)
+   if var91 = 0 then temp_acc = 0 : temp_v = 4 else temp_acc = 2 : temp_v = 150
+   
+   ; Align Y (Target Y = py_scr - var92)
+   ; Add +4 to align Arrow Center
+   temp_w = py_scr - var92 + 4
+   
+   ; Clamp Y (4..180)
+   if temp_w >= 128 then temp_w = 4 ; Handle negative wrapping
+   if temp_w > 180 then temp_w = 180
+   if temp_w < 4 then temp_w = 4
+
+hud_plot
+   plotsprite arrows_01 6 temp_v temp_w temp_acc
+   return
+
 init_boss
    ; Initialize Boss for Level 6
+   
+   if boss_checkpoint = 1 then goto init_boss_checkpoint
+   
    boss_hp = 100                     ; Boss health
    boss_state = 4                    ; Active state (Phase 4..1)
-   
+   goto init_boss_teleport
+
+init_boss_checkpoint
+   boss_hp = 50
+   boss_state = 2
+
+init_boss_teleport
    gosub teleport_boss
    
    boss_on = 0  ; Calculated by update_render_coords
@@ -2122,94 +2249,204 @@ boss_pos_ok
 update_boss
    if boss_state = 0 then return  ; Boss inactive
    
-   ; --- AI Movement Logic ---
-   ; Goal: Align with player on ONE axis (min delta), Retreat on OTHER axis
-   
-   ; Calculate Deltas (Screen/World)
-   ; Use simple 8-bit wrap logic on low bytes usually suffices if hi bytes match
-   ; But we have 512 world.
-   
-   ; Check world alignment first
-   ; X Logic
-   temp_v = 0 ; Chase X flag
-   temp_acc = 0 ; Chase Y flag
-   
-   ; Calculate Distances
-   dim dist_x = var90
-   dim dist_y = var91
-   
-   dist_x = boss_x - px
-   if dist_x >= 128 then dist_x = 0 - dist_x
-   
-   dist_y = boss_y - py
-   if dist_y >= 128 then dist_y = 0 - dist_y
-   
-   ; Decide Axis: Attack the closest axis (Smallest Delta)
-   if dist_x < dist_y then goto ai_attack_x
-   
-   ; AI Attack Y (Align Y, Retreat X)
-   ; Align Y
-   if py > boss_y then bvy = 1 else bvy = 255
-   
-   ; Retreat X (Move AWAY from player)
-   if px > boss_x then bvx = 255 else bvx = 1
-   goto ai_move_done
-   
-ai_attack_x
-   ; Attack X (Align X, Retreat Y)
-   ; Align X
-   if px > boss_x then bvx = 1 else bvx = 255
-   
-   ; Retreat Y
-   if py > boss_y then bvy = 255 else bvy = 1
-   
-ai_move_done
-
    ; --- Timers ---
    if boss_fighter_timer > 0 then boss_fighter_timer = boss_fighter_timer - 1
    if boss_fighter_timer = 0 then gosub attempt_boss_spawn_fighter
    
    if boss_asteroid_cooldown > 0 then boss_asteroid_cooldown = boss_asteroid_cooldown - 1
    if boss_asteroid_cooldown = 0 then if boss_on = 1 then gosub boss_throw_asteroid
+   
+   ; --- Oscillation Logic ---
+   ; Create triangular wave (-16 to +15) period ~64 frames
+   temp_acc = (frame / 2) & 63
+   if temp_acc > 31 then temp_acc = 63 - temp_acc
+   temp_acc = temp_acc - 16
+   
+   temp_w = temp_acc ; Alignment Offset
 
-   ; Move Boss (16-bit World Coordinates)
+   ; --- AI Movement Logic (Wrap Aware) ---
+   ; Only move if visible
+   if boss_on = 0 then bvx = 0 : bvy = 0 : goto ai_move_exec
+
+   ; Calculate Signed Deltas (Normalized)
+   
+   ; X Delta
+   var90 = px - boss_x
+   var91 = px_hi - boss_x_hi
+   if px < boss_x then var91 = var91 - 1
+   
+   ; Apply Offset to X (if Aligning X)
+   ; But we apply oscillation only to the Alignment Axis. 
+   ; Which axis is alignment? Smallest Delta.
+   ; We don't know yet. Apply to both? No, that makes it circle.
+   ; Let's just calculate raw first.
+   
+   ; Center Alignment Offset X: -8
+   temp_v = var90
+   var90 = var90 - 8
+   if var90 > temp_v then var91 = var91 - 1
+   
+   ; Normalize X
+   if var91 = 1 then var91 = 255
+   if var91 = 254 then var91 = 0
+   
+   ; Y Delta
+   var92 = py - boss_y
+   var93 = py_hi - boss_y_hi
+   if py < boss_y then var93 = var93 - 1
+   
+   ; Center Alignment Offset Y: -24
+   temp_v = var92
+   var92 = var92 - 24
+   if var92 > temp_v then var93 = var93 - 1
+   
+   ; Normalize Y
+   if var93 = 1 then var93 = 255
+   if var93 = 254 then var93 = 0
+   
+   ; Compare Magnitudes
+   temp_v = var90 
+   if var91 = 255 then temp_v = 0 - var90
+   
+   temp_w = var92
+   if var93 = 255 then temp_w = 0 - var92
+   
+   if temp_v < temp_w then goto ai_attack_x
+   
+   ; Attack Y (Align Y, Retreat X)
+   ; Use Oscillation on Y Delta (Targeting)
+   ; var92 is (Py - By). We want (Py + Osc - By).
+   ; So add Osc to var92.
+   ; This technically modifies var92 after magnitude check, which is fine (Oscillation applies to movement).
+   
+   ; Add Oscillation (temp_acc) to var92 (Y Delta)
+   ; temp_acc is -16..15. Sign extend?
+   ; It's 8-bit. Just add.
+   var92 = var92 + temp_acc 
+   ; Check carry/borrow for var93 if needed?
+   ; Since temp_acc is small and var92 is delta, we might cross 256 boundary?
+   ; Yes, theoretically. But mostly fine.
+   ; Also need to re-check sign of var92/var93?
+   ; If var92 was 0, and we add -16 ($F0).
+   ; var92 becomes $F0. But var93 (World Hi) didn't change.
+   ; This implies "Large Positive" if var93=0? No, $F0 is usually Pos.
+   ; Logic: "If var93=0 then Pos, if 255 then Neg".
+   ; If var92 wraps, var93 should update.
+   ; E.g. Delta 0 (0:0). Add -1 (255).
+   ; Result should be Neg. 255. Hi should become 255.
+   ; Updating 16-bit delta with 8-bit offset is tricky in Basic.
+   ; Simplified: Just apply oscillation to VELOCITY directly?
+   ; If "Aligned" (Delta Small), add side-velocity.
+   
+   ; Let's assume oscillation pushes target point.
+   ; If var93=0 and var92 > 128 (Neg-ish)? No, 0..255 is POS range in low-byte-only logic if hi=0?
+   ; Our Normalization:
+   ; If hi=0 -> + (0..255).
+   ; If hi=255 -> - (-256..-1).
+   ; If we add -16 to 0:0.
+   ; 0-16 = -16. In 16-bit: $FF:$F0.
+   ; So we need to handle carry to var93.
+   
+   if temp_acc >= 128 then goto osc_sub_y ; Negative
+   ; Positive Osc
+   temp_v = var92
+   var92 = var92 + temp_acc
+   if var92 < temp_v then var93 = var93 + 1
+   goto osc_y_done
+osc_sub_y
+   temp_v = var92
+   var92 = var92 + temp_acc ; (Adding neg)
+   if var92 > temp_v then var93 = var93 - 1
+osc_y_done
+   ; Renormalize
+   if var93 = 1 then var93 = 255
+   if var93 = 254 then var93 = 0
+   
+   if var93 = 0 then bvy = 6 else bvy = 250 ; Speed 6 (1.5 px)
+   if var91 = 0 then bvx = 250 else bvx = 6 ; Retreat X
+   goto ai_move_exec
+   
+ai_attack_x
+   ; Attack X (Align X, Retreat Y)
+   ; Add Oscillation to X Delta (var90)
+   if temp_acc >= 128 then goto osc_sub_x
+   temp_v = var90
+   var90 = var90 + temp_acc
+   if var90 < temp_v then var91 = var91 + 1
+   goto osc_x_done
+osc_sub_x
+   temp_v = var90
+   var90 = var90 + temp_acc
+   if var90 > temp_v then var91 = var91 - 1
+osc_x_done
+   ; Renormalize
+   if var91 = 1 then var91 = 255
+   if var91 = 254 then var91 = 0
+
+   if var91 = 0 then bvx = 6 else bvx = 250 ; Speed 6
+   if var93 = 0 then bvy = 250 else bvy = 6 ; Retreat Y
+   
+ai_move_exec
+   ; --- Movement Application (Accumulator /4) ---
    ; X Axis
    temp_v = bvx
-   if temp_v < 128 then goto boss_move_pos_x
+   if temp_v >= 128 then goto boss_neg_x
    
+   ; Positive X
+   temp_w = boss_acc_x + temp_v
+   boss_acc_x = temp_w & 3
+   temp_v = temp_w / 4
+   if temp_v = 0 then goto boss_x_done
+   
+   boss_x = boss_x + temp_v
+   if boss_x < temp_v then boss_x_hi = boss_x_hi + 1
+   goto boss_x_done
+   
+boss_neg_x
    ; Negative X
-   temp_v = 0 - temp_v
+   temp_v = 0 - temp_v ; Abs
+   temp_w = boss_acc_x + temp_v
+   boss_acc_x = temp_w & 3
+   temp_v = temp_w / 4
+   if temp_v = 0 then goto boss_x_done
+   
    temp_w = boss_x
    boss_x = boss_x - temp_v
    if boss_x > temp_w then boss_x_hi = boss_x_hi - 1
-   goto boss_x_done
-   
-boss_move_pos_x
-   boss_x = boss_x + temp_v
-   if boss_x < temp_v then boss_x_hi = boss_x_hi + 1
-   
+
 boss_x_done
-   ; Wrap X (0-1, 2 segments = 512)
+   ; Wrap X
    if boss_x_hi = 255 then boss_x_hi = 1
    if boss_x_hi >= 2 then boss_x_hi = 0
    
    ; Y Axis
    temp_v = bvy
-   if temp_v < 128 then goto boss_move_pos_y
+   if temp_v >= 128 then goto boss_neg_y
    
+   ; Positive Y
+   temp_w = boss_acc_y + temp_v
+   boss_acc_y = temp_w & 3
+   temp_v = temp_w / 4
+   if temp_v = 0 then goto boss_y_done
+   
+   boss_y = boss_y + temp_v
+   if boss_y < temp_v then boss_y_hi = boss_y_hi + 1
+   goto boss_y_done
+   
+boss_neg_y
    ; Negative Y
-   temp_v = 0 - temp_v
+   temp_v = 0 - temp_v ; Abs
+   temp_w = boss_acc_y + temp_v
+   boss_acc_y = temp_w & 3
+   temp_v = temp_w / 4
+   if temp_v = 0 then goto boss_y_done
+   
    temp_w = boss_y
    boss_y = boss_y - temp_v
    if boss_y > temp_w then boss_y_hi = boss_y_hi - 1
-   goto boss_y_done
-   
-boss_move_pos_y
-   boss_y = boss_y + temp_v
-   if boss_y < temp_v then boss_y_hi = boss_y_hi + 1
    
 boss_y_done
-   ; Wrap Y (0-1, 2 segments = 512)
+   ; Wrap Y
    if boss_y_hi = 255 then boss_y_hi = 1
    if boss_y_hi >= 2 then boss_y_hi = 0
    
@@ -2268,30 +2505,45 @@ boss_throw_asteroid
    if temp_v < boss_y then ay_hi = ay_hi + 1
    if ay_hi >= 2 then ay_hi = 0
    
-   ; X velocity
-   if px_hi = ax_hi then goto same_x_quad_throw
-   ; Different X quadrants
-   if px_hi > ax_hi then avx = 5 else avx = 251 ; Speed 5
-   goto calc_y_vel_throw
+   ; Aim at player (Wrap Aware)
    
-same_x_quad_throw
-   temp_acc = px - ax
-   if temp_acc >= 128 then temp_acc = 0 - temp_acc
-   if temp_acc < 10 then avx = 0 : goto calc_y_vel_throw
-   if px > ax then avx = 5 else avx = 251 ; Speed 5
+   ; X Delta
+   var90 = px - ax
+   var91 = px_hi - ax_hi
+   if px < ax then var91 = var91 - 1
    
-calc_y_vel_throw
-   ; Y velocity
-   if py_hi = ay_hi then goto same_y_quad_throw
-   ; Different Y quadrants
-   if py_hi > ay_hi then avy = 5 else avy = 251 ; Speed 5
+   ; Center Alignment Offset X: -8
+   temp_v = var90
+   var90 = var90 - 8
+   if var90 > temp_v then var91 = var91 - 1
+   
+   if var91 = 1 then var91 = 255
+   if var91 = 254 then var91 = 0
+   
+   avx = 0
+   if var91 = 0 && var90 > 10 then avx = 10
+   
+   if var91 = 255 then temp_v = 0 - var90 : if temp_v > 10 then avx = 246
+   
+   ; Y Delta
+   var92 = py - ay
+   var93 = py_hi - ay_hi
+   if py < ay then var93 = var93 - 1
+   
+   ; Center Alignment Offset Y: -24
+   temp_v = var92
+   var92 = var92 - 24
+   if var92 > temp_v then var93 = var93 - 1
+   
+   if var93 = 1 then var93 = 255
+   if var93 = 254 then var93 = 0
+   
+   avy = 0
+   if var93 = 0 && var92 > 10 then avy = 10
+   
+   if var93 = 255 then temp_v = 0 - var92 : if temp_v > 10 then avy = 246
+   
    goto throw_done
-   
-same_y_quad_throw
-   temp_acc = py - ay
-   if temp_acc >= 128 then temp_acc = 0 - temp_acc
-   if temp_acc < 10 then avy = 0 : goto throw_done
-   if py > ay then avy = 5 else avy = 251 ; Speed 5
    
 throw_done
    boss_asteroid_cooldown = 120 ; 2 second cooldown

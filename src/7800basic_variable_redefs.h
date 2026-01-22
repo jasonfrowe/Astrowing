@@ -1,8 +1,8 @@
 ; This file contains variable mapping and other information for the current project.
 
 unified_font_mode = $00
-unified_font_width_twoscompliment = $18
-unified_font_width = $68
+unified_font_width_twoscompliment = $10
+unified_font_width = $70
 Boss_conv_tallsprite_02_mode = $00
 Boss_conv_tallsprite_02_width_twoscompliment = $18
 Boss_conv_tallsprite_02_width = $08
@@ -21,6 +21,18 @@ asteroid_M_conv_tallsprite_00_width = $04
 asteroid_M_conv_mode = $00
 asteroid_M_conv_width_twoscompliment = $1c
 asteroid_M_conv_width = $04
+arrows_04_mode = $00
+arrows_04_width_twoscompliment = $1e
+arrows_04_width = $02
+arrows_03_mode = $00
+arrows_03_width_twoscompliment = $1e
+arrows_03_width = $02
+arrows_02_mode = $00
+arrows_02_width_twoscompliment = $1e
+arrows_02_width = $02
+arrows_01_mode = $00
+arrows_01_width_twoscompliment = $1e
+arrows_01_width = $02
 title_screen_conv05_mode = $00
 title_screen_conv05_width_twoscompliment = $18
 title_screen_conv05_width = $28
@@ -117,10 +129,6 @@ sprite_spaceship2_width = $04
 sprite_spaceship1_mode = $00
 sprite_spaceship1_width_twoscompliment = $1c
 sprite_spaceship1_width = $04
-dist_y = var91
- 
-dist_x = var90
- 
 py_hi = $2571
  
 px_hi = $2570
@@ -253,6 +261,12 @@ star_c = $2520
 star_y = $2500
  
 star_x = var80
+ 
+boss_checkpoint = $255F
+ 
+boss_acc_y = $255E
+ 
+boss_acc_x = $255D
  
 boss_fighter_timer = $25BB
  
@@ -634,6 +648,14 @@ asteroid_M_conv_color3 = $0f
 asteroid_M_conv_color2 = $38
 asteroid_M_conv_color1 = $1d
 asteroid_M_conv_color0 = $00
+arrows_04_color1 = $82
+arrows_04_color0 = $00
+arrows_03_color1 = $82
+arrows_03_color0 = $00
+arrows_02_color1 = $82
+arrows_02_color0 = $00
+arrows_01_color1 = $82
+arrows_01_color0 = $00
 title_screen_conv_color3 = title_screen_conv00_color3
 title_screen_conv_color2 = title_screen_conv00_color2
 title_screen_conv_color1 = title_screen_conv00_color1
