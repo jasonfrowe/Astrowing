@@ -567,6 +567,15 @@ main_loop
      ; Update Music
      gosub PlayMusic
   
+     ; ---- Low Health Warning (Palette Swap) ----
+     ; P5C1 ($34), P5C2 ($86) and P5C3 ($0A) 
+     if player_shield >= 20 then P5C2=$86 : goto skip_health_warn
+     
+     ; Flash every 30 frames (0.5s)
+     if (frame & 32) > 0 then P5C2=$34 else P5C2=$86
+     
+skip_health_warn
+
      drawscreen
     goto main_loop
 
@@ -578,6 +587,7 @@ check_rotation
    return
 
 apply_thrust
+
    ; X Axis
    temp_acc = sin_table[angle]
    if temp_acc < 128 then vx_p = vx_p + temp_acc 
