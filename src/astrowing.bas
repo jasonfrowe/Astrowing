@@ -314,8 +314,7 @@ title_reset_wait
     goto restore_pal_game
 title_no_reset
 
-    if frame >= 60 then frame = 0 : screen_timer = screen_timer - 1
-    if screen_timer = 0 then goto restore_pal_game
+    if frame >= 60 then frame = 0 
     
     goto title_loop
 
@@ -2252,8 +2251,7 @@ level_complete_wait
    drawscreen ; Sync to 60Hz
    
    frame = frame + 1
-   if frame >= 60 then frame = 0 : screen_timer = screen_timer - 1
-   if screen_timer = 0 then goto level_next_restore
+   if frame >= 60 then frame = 0
    
    if !joy0fire1 then goto level_complete_wait
 
@@ -2341,8 +2339,7 @@ dying_wait_press
    
    frame = frame + 1
    if switchreset then goto cold_start
-   if frame >= 60 then frame = 0 : screen_timer = screen_timer - 1
-   if screen_timer = 0 then goto title_loop ; Timeout to title
+   if frame >= 60 then frame = 0
    
    if !joy0fire1 then goto dying_wait_press
    
@@ -2467,8 +2464,7 @@ you_win_release
 you_win_wait
    frame = frame + 1
    if switchreset then goto cold_start
-   if frame >= 60 then frame = 0 : screen_timer = screen_timer - 1
-   if screen_timer = 0 then goto cold_start
+   if frame >= 60 then frame = 0
    
    drawscreen
    if !joy0fire1 then goto you_win_wait
@@ -2500,8 +2496,7 @@ you_lose_wait
    
    frame = frame + 1
    if switchreset then goto game_over_restore
-   if frame >= 60 then frame = 0 : screen_timer = screen_timer - 1
-   if screen_timer = 0 then goto game_over_restore
+   if frame >= 60 then frame = 0
    
    if !joy0fire1 then goto you_lose_wait
 
