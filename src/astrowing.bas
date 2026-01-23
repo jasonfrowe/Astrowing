@@ -3287,6 +3287,10 @@ update_blue_fighters
       gosub fire_bf_bullet
 skip_bf_fire
 
+      ; --- Respawn Check (If scrolled too far right) ---
+      ; Player is at X=80 in Zone 1,1. 
+      ; If fighter is at X>200 in Zone 1,1, it's way behind (visible screen is ~160).
+      if bfx_hi[iter] = 1 then if bfy_hi[iter] = 1 then if bfx[iter] > 200 then gosub do_spawn_bf
       
       ; --- Horizontal Movement (Accumulator linear 0.75px/frame) ---
       temp_v = bfx_acc[iter]
