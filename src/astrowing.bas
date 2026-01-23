@@ -1464,6 +1464,27 @@ check_enemy_ast_coll
 skip_e_ast
    next
 
+   ; 5b. Blue Fighter vs Asteroid
+   for iter = 0 to 1
+      if bflife[iter] = 0 then goto skip_bf_ast
+      if bflife[iter] > 1 then goto skip_bf_ast
+      if bf_on[iter] = 0 then goto skip_bf_ast
+      
+      temp_v = bfx_scr[iter] - ax_scr
+      if temp_v >= 128 then temp_v = 0 - temp_v
+      if temp_v >= 14 then goto skip_bf_ast
+      
+      temp_v = bfy_scr[iter] - ay_scr
+      if temp_v >= 128 then temp_v = 0 - temp_v
+      if temp_v >= 24 then goto skip_bf_ast
+      
+      ; Hit!
+      bflife[iter] = 18 ; Explode
+      playsfx sfx_damage 0
+      score0 = score0 + 50
+skip_bf_ast
+   next
+
    ; 6. Enemy Bullet vs Asteroid (Missing)
    for iter = 0 to 3
       if eblife[iter] = 0 then goto skip_ebul_ast
