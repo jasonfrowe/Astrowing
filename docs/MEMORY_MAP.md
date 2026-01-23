@@ -90,6 +90,8 @@ Variables manually allocated to the upper RAM block using `dim var = $Address`.
 | `$25E4-25E5` | `bfx_scr` | Blue Fighter Screen X | Cached render |
 | `$25E6-25E7` | `bfy_scr` | Blue Fighter Screen Y | Cached render |
 | `$25E8-25E9` | `bf_on` | Blue Fighter Visible | Visibility flags |
+| `$25EA-25EB` | `bfx_acc` | Blue Fighter X Acc | Sub-pixel move X |
+| `$25EC-25ED` | `bfy_acc` | Blue Fighter Y Acc | Sub-pixel move Y |
 | `$255D` | `acc_bx` | Boss Physics Acc X (Removed?) | Moved to 256A |
 | `$255E` | `acc_by` | Boss Physics Acc Y (Removed?) | Moved to 256B |
 | `$255F` | `boss_checkpoint` | Boss Health Gate (BCD?) | Moved to 256C |

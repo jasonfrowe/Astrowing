@@ -3119,7 +3119,7 @@ do_spawn_bf
    ; Spawn Blue Fighter
    bflife[iter] = 1
    
-   ; Set High Byte to zone 1,1 using standard enemy numbering (hi=1 for center)
+   ; Set High Byte to match Player (Local Spawn)
    bfx_hi[iter] = 1
    bfy_hi[iter] = 1
    
@@ -3141,25 +3141,21 @@ bf_spawn_y
    return
 update_blue_fighters
    ; Update both Blue Fighters (separate pool)
-   ; SIMPLIFIED: Just diagonal movement for debugging scrolling
+   ; DISABLED: Self-movement for debugging scroll behavior
    for iter = 0 to 1
       if bflife[iter] = 0 then goto next_bf
       
-      ; Horizontal Movement (right, 0.5 px/frame)
-      if (frame & 1) = 0 then bfx[iter] = bfx[iter] + 1
-      if bfx[iter] = 0 then bfx_hi[iter] = bfx_hi[iter] + 1
+      ; Horizontal Movement DISABLED for testing
+      ; if (frame & 1) = 0 then bfx[iter] = bfx[iter] + 1
+      ; if bfx[iter] = 0 then bfx_hi[iter] = bfx_hi[iter] + 1
+      ; if bfx_hi[iter] = 255 then bfx_hi[iter] = 1
+      ; if bfx_hi[iter] >= 2 then bfx_hi[iter] = 0
       
-      ; Wrap World X (zones 0↔1, matching standard enemies)
-      if bfx_hi[iter] = 255 then bfx_hi[iter] = 1
-      if bfx_hi[iter] >= 2 then bfx_hi[iter] = 0
-      
-      ; Vertical Movement (down, 0.25 px/frame)
-      if (frame & 3) = 0 then bfy[iter] = bfy[iter] + 1
-      if bfy[iter] = 0 then bfy_hi[iter] = bfy_hi[iter] + 1
-      
-      ; Wrap World Y (zones 0↔1, matching standard enemies)
-      if bfy_hi[iter] = 255 then bfy_hi[iter] = 1
-      if bfy_hi[iter] >= 2 then bfy_hi[iter] = 0
+      ; Vertical Movement DISABLED for testing
+      ; if (frame & 3) = 0 then bfy[iter] = bfy[iter] + 1
+      ; if bfy[iter] = 0 then bfy_hi[iter] = bfy_hi[iter] + 1
+      ; if bfy_hi[iter] = 255 then bfy_hi[iter] = 1
+      ; if bfy_hi[iter] >= 2 then bfy_hi[iter] = 0
       
 next_bf
    next
