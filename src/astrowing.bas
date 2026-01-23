@@ -1302,7 +1302,7 @@ skip_enemy_coll
          
          ; Hit!
          blife[iter] = 0
-         bflife[temp_acc] = 0 ; Instant death
+         bflife[temp_acc] = 18 ; Trigger explosion
          playsfx sfx_damage 0
          score0 = score0 + 250
          goto skip_bullet_coll ; Bullet spent
@@ -1364,7 +1364,7 @@ skip_p_e
       if temp_v >= 11 then goto skip_p_bf
       
       ; Hit!
-      bflife[iter] = 0
+      bflife[iter] = 18 ; Trigger explosion
       playsfx sfx_damage 0
       temp_v = 2
       if player_shield < temp_v then player_shield = 0 else player_shield = player_shield - temp_v
@@ -3171,28 +3171,23 @@ do_spawn_bf
    ; Spawn Blue Fighter
    bflife[iter] = 1
    
-   ; Set High Byte to match Player (Local Spawn)
-   bfx_hi[iter] = 1
-   bfy_hi[iter] = 1
+   bfx[iter] = 100
+   bfx_hi[iter] = 0
    
-   ; Randomize spawn side (left or right edge)
+   bfy[iter] = rand
    temp_v = rand
-   if temp_v < 128 then goto bf_spawn_left
+   if temp_v < 128 then bfy_hi[iter] = 0 else bfy_hi[iter] = 1
    
-bf_spawn_right
-   bfx[iter] = 160
-   goto bf_spawn_y
+   bfby[iter] = bfy[iter] ; Reset base Y for oscillation
    
-bf_spawn_left
-   bfx[iter] = 0
+   return
    
-bf_spawn_y
-   ; Random Y position
 update_blue_fighters
    ; Update both Blue Fighters (runs BEFORE shift_universe)
    ; Uses proper overflow detection: if new < old, then wrapped
    for iter = 0 to 1
       if bflife[iter] = 0 then goto next_bf
+      if bflife[iter] > 1 then bflife[iter] = bflife[iter] - 1 : if bflife[iter] = 1 then bflife[iter] = 0 : goto next_bf 
       
       ; --- Horizontal Movement (Accumulator linear 0.75px/frame) ---
       temp_v = bfx_acc[iter]
@@ -3309,7 +3304,16 @@ draw_blue_fighters
       if bf_on[iter] = 0 then goto next_draw_bf
       temp_v = bfx_scr[iter]
       temp_w = bfy_scr[iter]
+      
+      if bflife[iter] > 1 then goto draw_bf_explosion
       plotsprite blue_fighter 3 temp_v temp_w
+      goto next_draw_bf
+      
+draw_bf_explosion
+      temp_acc = 18 - bflife[iter]
+      temp_acc = temp_acc / 2
+      if temp_acc > 7 then temp_acc = 7
+      plotsprite fighter_explode_00_conv 3 temp_v temp_w temp_acc
 next_draw_bf
    next
    return
