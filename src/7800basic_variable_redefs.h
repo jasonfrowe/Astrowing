@@ -195,6 +195,8 @@ bul_x3 = var21
 bul_x2 = var20 
 bul_x1 = var19 
 bul_x0 = var18 
+bf_fire_cooldown = $25F3
+ 
 bf_bul_life = $25F2
  
 bf_bul_vy = $25F1

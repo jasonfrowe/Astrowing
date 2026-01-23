@@ -211,6 +211,8 @@
    dim bf_bul_vx = $25F0
    dim bf_bul_vy = $25F1
    dim bf_bul_life = $25F2
+   dim bf_fire_cooldown = $25F3
+
    
    ; Aliases for plotsprite usage
    dim bul_x0 = var18 : dim bul_x1 = var19 : dim bul_x2 = var20 : dim bul_x3 = var21
@@ -468,6 +470,8 @@ init_game
    ; Clear Blue Fighters (separate pool)
    bflife[0]=0 : bflife[1]=0
    bf_bul_life = 0
+   bf_fire_cooldown = 0
+
 
    
    gosub init_stars
@@ -589,6 +593,9 @@ ready_done
    ; ---- BF Bullet Update ----
    gosub update_bf_bullet
 
+   ; ---- BF Cooldown ----
+   if bf_fire_cooldown > 0 then bf_fire_cooldown = bf_fire_cooldown - 1
+   
    ; ---- Collisions ----
    gosub check_collisions
    
@@ -2934,8 +2941,17 @@ restart_level_common
       blife[iter] = 0
       eblife[iter] = 0
    next
+   
+   bflife[0]=0 : bflife[1]=0
    bf_bul_life = 0
+   bf_fire_cooldown = 0
+   
+   ; Immediate Spawn of Blue Fighters
+   gosub spawn_blue_fighter ; Slot 0
+   gosub spawn_blue_fighter ; Slot 1
+   
    alife = 0
+
 
    ; Force asteroid to safe off-screen position (Page 0, Center)
    ax = 128 : ax_hi = 0
@@ -3238,12 +3254,14 @@ do_spawn_bf
    ; Spawn Blue Fighter
    bflife[iter] = 1
    
-   bfx[iter] = 100
+   bfx[iter] = 200
    bfx_hi[iter] = 0
    
-   bfy[iter] = rand
    temp_v = rand
-   if temp_v < 128 then bfy_hi[iter] = 0 else bfy_hi[iter] = 1
+   if temp_v < 20 then temp_v = 20
+   if temp_v > 172 then temp_v = 172
+   bfy[iter] = temp_v
+   bfy_hi[iter] = 1 ; Same Y-zone as player (Zone 1)
    
    bfby[iter] = bfy[iter] ; Reset base Y for oscillation
    
@@ -3258,7 +3276,9 @@ update_blue_fighters
       
       ; --- Firing Logic ---
       if bf_bul_life > 0 then goto skip_bf_fire
+      if bf_fire_cooldown > 0 then goto skip_bf_fire
       if bfx_hi[iter] <> 1 then goto skip_bf_fire
+
       if bfy_hi[iter] <> 1 then goto skip_bf_fire
       if bfx[iter] > 152 then goto skip_bf_fire
       if bfy[iter] > 184 then goto skip_bf_fire
@@ -3399,8 +3419,10 @@ next_draw_bf
 
 fire_bf_bullet
    bf_bul_life = 60
+   bf_fire_cooldown = 30 ; 0.5s cooldown
    
    bf_bul_x = bfx[iter] + 4
+
    bf_bul_y = bfy[iter] + 4
    
    if px_scr > bfx[iter] then bf_bul_vx = 4 else bf_bul_vx = 252 ; +4 or -4

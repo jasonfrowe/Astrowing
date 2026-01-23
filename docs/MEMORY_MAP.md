@@ -146,7 +146,8 @@ Variables manually allocated to the upper RAM block using `dim var = $Address`.
 | `$25F0` | `bf_bul_vx` | Blue Fighter Bul VX | |
 | `$25F1` | `bf_bul_vy` | Blue Fighter Bul VY | |
 | `$25F2` | `bf_bul_life` | Blue Fighter Bul Life | |
-| `$25F3-25FF` | (Reserved) | | |
+| `$25F3` | `bf_fire_cooldown`| BF Fire Cooldown | |
+| `$25F4-25FF` | (Reserved) | | |
 
 ---
 
