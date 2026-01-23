@@ -1285,6 +1285,30 @@ check_collisions
 skip_enemy_coll
       next
       
+      ; 1b. Bullets vs Blue Fighters
+      for temp_acc = 0 to 1
+         if bf_on[temp_acc] = 0 then goto skip_bul_bf
+         if bflife[temp_acc] <> 1 then goto skip_bul_bf
+         
+         temp_v = bul_x[iter] - bfx_scr[temp_acc]
+         temp_v = temp_v - 6 ; Center Offset
+         if temp_v >= 128 then temp_v = 0 - temp_v
+         if temp_v >= 9 then goto skip_bul_bf
+         
+         temp_v = bul_y[iter] - bfy_scr[temp_acc]
+         temp_v = temp_v - 6
+         if temp_v >= 128 then temp_v = 0 - temp_v
+         if temp_v >= 9 then goto skip_bul_bf
+         
+         ; Hit!
+         blife[iter] = 0
+         bflife[temp_acc] = 0 ; Instant death
+         playsfx sfx_damage 0
+         score0 = score0 + 250
+         goto skip_bullet_coll ; Bullet spent
+skip_bul_bf
+      next
+      
 skip_bullet_coll
    next
    
@@ -1323,6 +1347,29 @@ skip_bullet_coll
       if player_shield <= 0 then goto coll_done
       
 skip_p_e
+   next
+   
+   ; 2b. Player vs Blue Fighters
+   for iter = 0 to 1
+      if bf_on[iter] = 0 then goto skip_p_bf
+      if bflife[iter] <> 1 then goto skip_p_bf
+      
+      temp_v = px_scr - bfx_scr[iter]
+      temp_v = temp_v + 4
+      if temp_v >= 128 then temp_v = 0 - temp_v
+      if temp_v >= 11 then goto skip_p_bf
+      
+      temp_v = py_scr - bfy_scr[iter]
+      if temp_v >= 128 then temp_v = 0 - temp_v
+      if temp_v >= 11 then goto skip_p_bf
+      
+      ; Hit!
+      bflife[iter] = 0
+      playsfx sfx_damage 0
+      temp_v = 2
+      if player_shield < temp_v then player_shield = 0 else player_shield = player_shield - temp_v
+      if player_shield <= 0 then goto coll_done
+skip_p_bf
    next
    
    ; Only check if visible
