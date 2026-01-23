@@ -3160,17 +3160,18 @@ bf_move_x_pixel
       if bfx_hi[iter] >= 2 then bfx_hi[iter] = 0
 bf_move_x_done
 
-      ; --- Vertical Oscillation (Sine Velocity + Accumulator) ---
-      ; 1. Calculate Phase (Period ~64 frames)
-      temp_v = (frame + (iter * 64)) / 4
-      temp_v = temp_v & 15    ; Mask 0-15
+      ; --- Vertical Oscillation (Triangle Wave / Square Velocity) ---
+      ; 1. Calculate Phase (Period 64 frames - Updates EVERY frame for smoothness)
+      temp_v = (frame + (iter * 32)) & 63
       
-      ; 2. Get Velocity from Table
-      temp_acc = sin_table[temp_v] ; Signed value (max 4, min -4/252)
+      ; 2. Set Constant Velocity (Square wave velocity centered at 0)
+      ;    254 is -2, 2 is +2. 
+      if temp_v >= 32 then temp_acc = 254 else temp_acc = 2
       
-      ; 3. Scale Velocity (x16) for Accumulator
-      ;    Max 4*16 = 64 subpixels/frame (0.25 px/frame)
-      temp_w = temp_acc * 16
+      ; 3. Scale Velocity (Tweakable amplitude/speed)
+      ;    2 * 64 = 128 subpixels/frame (0.5 px/frame)
+      ;    Over 32 frames = 16 pixels total height. Perfect symmetry.
+      temp_w = temp_acc * 64
       
       ; 4. Add to Accumulator
       temp_v = bfy_acc[iter] ; Old Acc
