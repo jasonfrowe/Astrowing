@@ -3147,9 +3147,9 @@ update_blue_fighters
    for iter = 0 to 1
       if bflife[iter] = 0 then goto next_bf
       
-      ; --- Horizontal Movement (Accumulator linear 0.5px/frame) ---
+      ; --- Horizontal Movement (Accumulator linear 0.75px/frame) ---
       temp_v = bfx_acc[iter]
-      bfx_acc[iter] = bfx_acc[iter] + 128
+      bfx_acc[iter] = bfx_acc[iter] + 192
       if bfx_acc[iter] < temp_v then goto bf_move_x_pixel
       goto bf_move_x_done
       
@@ -3160,17 +3160,17 @@ bf_move_x_pixel
       if bfx_hi[iter] >= 2 then bfx_hi[iter] = 0
 bf_move_x_done
 
-      ; --- Vertical Oscillation (Triangle Wave / Square Velocity) ---
-      ; 1. Calculate Phase (Period 64 frames - Updates EVERY frame for smoothness)
-      temp_v = (frame + (iter * 32)) & 63
+      ; --- Vertical Oscillation (Large Triangle Wave / Square Velocity) ---
+      ; 1. Calculate Phase (Period 256 frames - Slower/Wider Pattern)
+      temp_v = (frame + (iter * 128))
       
       ; 2. Set Constant Velocity (Square wave velocity centered at 0)
       ;    254 is -2, 2 is +2. 
-      if temp_v >= 32 then temp_acc = 254 else temp_acc = 2
+      if temp_v & 128 then temp_acc = 254 else temp_acc = 2
       
       ; 3. Scale Velocity (Tweakable amplitude/speed)
       ;    2 * 64 = 128 subpixels/frame (0.5 px/frame)
-      ;    Over 32 frames = 16 pixels total height. Perfect symmetry.
+      ;    Over 128 frames per direction = 64 pixels total travel.
       temp_w = temp_acc * 64
       
       ; 4. Add to Accumulator
