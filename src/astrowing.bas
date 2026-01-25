@@ -131,6 +131,7 @@
    dim ready_flag = $254E    ; Level start ready flag (1=waiting, 0=active)
    dim boss_on = $25BA       ; Boss Visible Flag
    dim boss_fighter_timer = $25BB ; Timer for fighter spawning
+   dim boss_move_phase = $25BC    ; Boss Oscillation Phase
    dim boss_osc_x = $2568 ; Targeting Oscillation X
    dim boss_osc_y = $2569 ; Targeting Oscillation Y
    dim boss_acc_x = $256A ; Boss Sub-pixel X
@@ -229,6 +230,8 @@
    dim ay_scr = $259C
    dim e_on   = $259D ; 209-212
    dim a_on   = $25A1
+
+
 
    ; 0 = inactive, >0 = active frames
    
@@ -408,7 +411,7 @@ init_game
     player_lives = 3  ; Start with 3 lives (display will show 2 hearts = 2 extra lives)
     
     ; Initialize Level
-    current_level = 6
+    current_level = 1
     boss_checkpoint = 0 ; Reset Health Gate
     
     ; Initialize UI cache (Bug Fix #3)
@@ -2445,226 +2448,84 @@ update_boss
    if boss_asteroid_cooldown > 0 then boss_asteroid_cooldown = boss_asteroid_cooldown - 1
    if boss_asteroid_cooldown = 0 then if boss_on = 1 then gosub boss_throw_asteroid
    
-   ; --- Target Oscillation (32px Radius) ---
-   temp_acc = frame & 127
-   if temp_acc > 63 then temp_acc = 127 - temp_acc
-   boss_osc_x = temp_acc - 32
-   
-   temp_acc = (frame + 32) & 127
-   if temp_acc > 63 then temp_acc = 127 - temp_acc
-   boss_osc_y = temp_acc - 32
+   ; --- 0. Update Local Coordinates (Avoid Lag) ---
+   ; This ensures bvx/bvy are calculated against current position
+   boss_scr_x = boss_x
+   boss_scr_y = boss_y
 
-   ; --- AI Movement Logic (Wrap Aware) ---
-   ; Only move if visible
-   if boss_on = 0 then bvx = 0 : bvy = 0 : goto ai_move_exec
-   
-   bvy = 0 : bvy = 0 ; (Removed)
-   ; --- Restrict Hover at Edge ---
-   ; If Boss is not fully visible, FORCE CHASE (do not hover/match scroll).
-   ; This prevents Boss from getting stuck at edge matching scrolling.
-   
-   var94 = 1 ; Default: Fully Visible
-   
-   ; Check X Edge (Screen 0..160, Boss 32 wide)
-   ; Left: > 224 (Negative wrapped). Right: > 128 (160-32).
-   if boss_scr_x > 224 then var94 = 0
-   if boss_scr_x > 128 && boss_scr_x < 224 then var94 = 0
-   
-   ; Check Y Edge (Screen 0..192, Boss 32 tall)
-   ; Top: > 224. Bottom: > 160.
-   if boss_scr_y > 224 then var94 = 0
-   if boss_scr_y > 160 && boss_scr_y < 224 then var94 = 0
-   
-   goto ai_calc_start
-   
-   ; (force_stop_ai removed)
+   ; --- Boss Movement Logic ---
+   if boss_on = 0 then bvx = 0 : bvy = 0 : return
 
-ai_calc_start
+   ; 1. Base Oscillation (Default State)
+   ; Determine closest edge to find oscillation axis
+   temp_v = boss_scr_y ; Min Y dist (Top)
+   if boss_scr_y > 192 then temp_v = 256 - boss_scr_y
+   
+   temp_w = 192 - boss_scr_y ; Bottom
+   if boss_scr_y > 192 then temp_w = 0
+   if temp_w < temp_v then temp_v = temp_w ; temp_v is Min Y Dist
+   
+   temp_w = boss_scr_x ; Min X dist (Left)
+   if boss_scr_x > 160 then temp_w = 256 - boss_scr_x
+   
+   var90 = 160 - boss_scr_x ; Right
+   if boss_scr_x > 160 then var90 = 0
+   if var90 < temp_w then temp_w = var90 ; temp_w is Min X Dist
+   
+   if temp_w < temp_v then goto boss_osc_vertical
 
-   ; Calculate Target Coords (Player + Oscillation)
-   temp_v = boss_osc_x
-   var90 = px + temp_v
-   var91 = px_hi
-   if temp_v < 128 then if var90 < px then var91 = var91 + 1
-   if temp_v >= 128 then if var90 > px then var91 = var91 - 1
-   
-   temp_v = boss_osc_y
-   var92 = py + temp_v
-   var93 = py_hi
-   if temp_v < 128 then if var92 < py then var93 = var93 + 1
-   if temp_v >= 128 then if var92 > py then var93 = var93 - 1
+boss_osc_horizontal
+   bvy = 0
+   boss_move_phase = boss_move_phase + 1
+   if boss_move_phase >= 120 then boss_move_phase = 0
+   if boss_move_phase < 60 then bvx = 3 else bvx = 253
+   goto boss_apply_constraints
 
-   ; Calculate Signed Deltas to Boss Position
-   
-   ; X Delta
-   temp_v = var90
-   var90 = var90 - boss_x
-   var91 = var91 - boss_x_hi
-   if temp_v < boss_x then var91 = var91 - 1
-   
-   ; Center Alignment Offset X: -8
-   temp_v = var90
-   var90 = var90 - 8
-   if var90 > temp_v then var91 = var91 - 1
-   
-   ; Normalize X
-   if var91 = 1 then var91 = 255
-   if var91 = 254 then var91 = 0
-   
-   ; Y Delta
-   temp_v = var92
-   var92 = var92 - boss_y
-   var93 = var93 - boss_y_hi
-   if temp_v < boss_y then var93 = var93 - 1
-   
-   ; Center Alignment Offset Y: -24
-   temp_v = var92
-   var92 = var92 - 24
-   if var92 > temp_v then var93 = var93 - 1
-   
-   ; Normalize Y
-   if var93 = 1 then var93 = 255
-   if var93 = 254 then var93 = 0
-   
-   ; Compare Magnitudes
-   temp_v = var90 
-   if var91 = 255 then temp_v = 0 - var90
-   
-   temp_w = var92
-   if var93 = 255 then temp_w = 0 - var92
-   
-   if temp_v < temp_w then goto ai_attack_x
-   
-   ; Attack Y (Align Y, Retreat X)
-   ; Use Oscillation on Y Delta (Targeting)
-   ; var92 is (Py - By). We want (Py + Osc - By).
-   ; So add Osc to var92.
-   ; This technically modifies var92 after magnitude check, which is fine (Oscillation applies to movement).
-   
-   ; Add Oscillation (temp_acc) to var92 (Y Delta)
-   ; temp_acc is -16..15. Sign extend?
-   ; It's 8-bit. Just add.
-   var92 = var92 + temp_acc 
-   ; Check carry/borrow for var93 if needed?
-   ; Since temp_acc is small and var92 is delta, we might cross 256 boundary?
-   ; Yes, theoretically. But mostly fine.
-   ; Also need to re-check sign of var92/var93?
-   ; If var92 was 0, and we add -16 ($F0).
-   ; var92 becomes $F0. But var93 (World Hi) didn't change.
-   ; This implies "Large Positive" if var93=0? No, $F0 is usually Pos.
-   ; Logic: "If var93=0 then Pos, if 255 then Neg".
-   ; If var92 wraps, var93 should update.
-   ; E.g. Delta 0 (0:0). Add -1 (255).
-   ; Result should be Neg. 255. Hi should become 255.
-   ; Updating 16-bit delta with 8-bit offset is tricky in Basic.
-   ; Simplified: Just apply oscillation to VELOCITY directly?
-   ; If "Aligned" (Delta Small), add side-velocity.
-   
-   ; Let's assume oscillation pushes target point.
-   ; If var93=0 and var92 > 128 (Neg-ish)? No, 0..255 is POS range in low-byte-only logic if hi=0?
-   ; Our Normalization:
-   ; If hi=0 -> + (0..255).
-   ; If hi=255 -> - (-256..-1).
-   ; If we add -16 to 0:0.
-   ; 0-16 = -16. In 16-bit: $FF:$F0.
-   ; So we need to handle carry to var93.
-   
-   if temp_acc >= 128 then goto osc_sub_y ; Negative
-   ; Positive Osc
-   temp_v = var92
-   var92 = var92 + temp_acc
-   if var92 < temp_v then var93 = var93 + 1
-   goto osc_y_done
-osc_sub_y
-   temp_v = var92
-   var92 = var92 + temp_acc ; (Adding neg)
-   if var92 > temp_v then var93 = var93 - 1
-osc_y_done
-   ; Renormalize
-   if var93 = 1 then var93 = 255
-   if var93 = 254 then var93 = 0
-   
-   bvy = 250 ; Speed 6 (1.5 px) -> Attack Y
-   
-   ; Retreat X Logic (Keep Distance ~40px)
-   ; Calculate Delta Magnitude (Abs)
-   temp_v = var90
-   if var91 = 255 then temp_v = 0 - var90
-   
-   ; If Distance < 40, Force Retreat (Move Away)
-   if temp_v < 40 then goto force_retreat_x
-   
-   ; Match Scroll (Hover) - Only if Fully Visible!
-   if var94 = 0 then goto chase_x_ret
-   
-   temp_v = vx_p / 16
-   if vx_m > 0 then temp_v = vx_m / 16 : temp_v = 0 - temp_v
-   bvx = temp_v
-   goto ai_move_exec
-   
-chase_x_ret
-   ; Chase X (Attack Speed)
-   if var91 = 0 then bvx = 6 else bvx = 250
-   goto ai_move_exec
+boss_osc_vertical
+   bvx = 0
+   boss_move_phase = boss_move_phase + 1
+   if boss_move_phase >= 120 then boss_move_phase = 0
+   if boss_move_phase < 60 then bvy = 3 else bvy = 253
 
-force_retreat_x
-   ; Check Direction to Move Away
-   ; If var91=0 (Player > Boss), Boss is Left. Move Left (250).
-   ; If var91=255 (Player < Boss), Boss is Right. Move Right (6).
-   if var91 = 0 then bvx = 250 else bvx = 6
-   goto ai_move_exec
-   
-ai_attack_x
-   ; Attack X (Align X, Retreat Y)
-   ; Add Oscillation to X Delta (var90)
-   if temp_acc >= 128 then goto osc_sub_x
-   temp_v = var90
-   var90 = var90 + temp_acc
-   if var90 < temp_v then var91 = var91 + 1
-   goto osc_x_done
-osc_sub_x
-   temp_v = var90
-   var90 = var90 + temp_acc
-   if var90 > temp_v then var91 = var91 - 1
-osc_x_done
-   ; Renormalize
-   if var91 = 1 then var91 = 255
-   if var91 = 254 then var91 = 0
+boss_apply_constraints
 
-   bvx = 250 ; Speed 6 -> Attack X
+   ; 2. Screen Boundary Containment (Enforce staying on screen)
+   ; Right Edge
+   if boss_scr_x > 136 && boss_scr_x < 210 then bvx = 253 ; Force Left
+   ; Left Edge (Covers wrapped range 210-255 and visible edge 0-24)
+   if boss_scr_x < 24 || boss_scr_x >= 210 then bvx = 3 ; Force Right
    
-   ; Retreat Y Logic (Keep Distance ~40px)
-   ; Calculate Delta Magnitude (Abs)
-   temp_v = var92
-   if var93 = 255 then temp_v = 0 - var92
-   
-   ; If Distance < 40, Force Retreat
-   if temp_v < 40 then goto force_retreat_y
-   
-   ; Match Scroll - Only if Fully Visible!
-   if var94 = 0 then goto chase_y_ret
-   
-   temp_v = vy_p / 16
-   if vy_m > 0 then temp_v = vy_m / 16 : temp_v = 0 - temp_v
-   bvy = temp_v
-   goto ai_move_exec
-   
-chase_y_ret
-   ; Chase Y (Attack Speed)
-   if var93 = 0 then bvy = 6 else bvy = 250
-   goto ai_move_exec
+   ; Bottom Edge
+   if boss_scr_y > 168 && boss_scr_y < 192 then bvy = 253 ; Force Up
+   ; Top Edge (Covers wrapped range 192-255 and visible edge 0-24)
+   if boss_scr_y < 24 || boss_scr_y >= 192 then bvy = 3 ; Force Down
 
-force_retreat_y
-   ; Check Direction to Move Away
-   ; If var93=0 (Player > Boss), Boss is Above. Move Up (250).
-   ; Wait. var93=0 means Positive Delta (Target > Boss). Boss is LESS than Target. Boss is Above/Left.
-   ; If Boss < Py (var93=0), Boss is Above. Move UP (250) to retreat.
-   ; If Boss > Py (var93=255), Boss is Below. Move DOWN (6) to retreat.
-   if var93 = 0 then bvy = 250 else bvy = 6
-
+   ; 3. Player Avoidance (40px safety box) - HIGHEST PRIORITY
+   ; Boss Center
+   temp_v = boss_scr_x + 16
+   temp_w = boss_scr_y + 32
+   ; Player Center
+   var90 = px_scr + 8
+   var91 = py_scr + 8
+   ; Deltas
+   var92 = temp_v - var90
+   if var92 >= 128 then var92 = 0 - var92
+   var93 = temp_w - var91
+   if var93 >= 128 then var93 = 0 - var93
    
-ai_move_exec
-   ; --- Movement Application (Accumulator /4) ---
+   if var92 < 40 && var93 < 40 then goto boss_force_retreat
+   
+   goto boss_move_apply
+
+boss_force_retreat
+   ; Recalculate signed direction to move away
+   if temp_v < var90 then bvx = 253 else bvx = 3 ; Move Left if P is Right
+   if temp_w < var91 then bvy = 253 else bvy = 3 ; Move Up if P is Down
+
+boss_move_apply
+   ; Apply Velocities (Integer math, wrap-aware)
+   ; ... rest of movement application (handled below) ...
+
    ; X Axis
    temp_v = bvx
    if temp_v >= 128 then goto boss_neg_x

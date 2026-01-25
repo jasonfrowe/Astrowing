@@ -130,6 +130,8 @@ Variables manually allocated to the upper RAM block using `dim var = $Address`.
 | `$25B9` | `boss_scr_y` | Boss Screen Y | |
 | `$25BA` | `boss_on` | Boss Visible Flag | |
 | `$25BB` | `boss_fighter_timer`| Boss Spawn Timer | |
+| `$25BC` | `boss_move_phase` | Boss Oscillation Phase | |
+| `$25BD-25D7` | (Reserved) | | |
 | `$25D8-25D9` | `bfx` | Blue Fighter X (Low) | Array [2] |
 | `$25DA-25DB` | `bfy` | Blue Fighter Y (Low) | Array [2] |
 | `$25DC-25DD` | `bflife` | Blue Fighter Life | Array [2] |

@@ -303,6 +303,8 @@ boss_osc_y = $2569
  
 boss_osc_x = $2568
  
+boss_move_phase = $25BC
+ 
 boss_fighter_timer = $25BB
  
 boss_on = $25BA
