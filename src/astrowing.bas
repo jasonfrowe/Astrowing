@@ -1631,8 +1631,13 @@ skip_ebul_coll
       if temp_v >= 16 then goto skip_bul_boss ; Half boss height (16) + bullet
       
       ; Hit!
-      blife[iter] = 0
-       if boss_hp < 1 then boss_hp = 0 else boss_hp = boss_hp - 1
+       blife[iter] = 0
+       
+       ; Damage Scaling: Level 1=6, Level 6=1
+       temp_w = 7 - current_level
+       if temp_w < 1 then temp_w = 1 ; Safety
+       
+       if boss_hp < temp_w then boss_hp = 0 else boss_hp = boss_hp - temp_w
        playsfx sfx_damage 0
        score0 = score0 + 10
        
@@ -1685,8 +1690,11 @@ coll_done
 
 boss_defeated
    ; Boss destroyed - trigger level complete
+   boss_state = 5 ; State 5 = Defeated/Level Complete
+   boss_on = 0
    fighters_remaining = 0
    score0 = score0 + 5000
+   gosub refresh_static_ui
    goto coll_done
 
 init_stars
@@ -2425,7 +2433,7 @@ init_boss
    if boss_checkpoint = 1 then goto init_boss_checkpoint
    
    boss_hp = 100                     ; Boss health
-   if current_level < 5 then boss_hp = 50 ; Less HP for mini-bosses
+   ; Always 100 HP. Difficulty is managed by damage scaling.
    boss_state = 4                    ; Active state (Phase 4..1)
    goto init_boss_teleport
 
@@ -2950,6 +2958,14 @@ restart_level_common
    vy_p = 0 : vy_m = 0
    rx = 0 : ry = 0 : acc_mx = 0 : acc_my = 0 ; Clear accumulators
    angle = 0 : rot_timer = 0 ; Reset orientation
+   
+   ; Reset Boss State
+   boss_state = 0 
+   boss_on = 0
+   boss_checkpoint = 0 ; Reset checkpoint for new encounter
+   ; Boss HP will be set by init_boss when needed
+   
+   ; Clear bullets
    shpfr = 0 ; Reset sprite frame
    frame = 0 ; Reset frame counter for clean start
    
