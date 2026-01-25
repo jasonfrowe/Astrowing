@@ -303,7 +303,7 @@ reset_release_wait
    ; Global Coords Only
 
    ; Initialize music rotation timer (2 minutes = 7200 frames)
-    dim game_difficulty = $2566 ; 0=Pro, 1=Easy
+    dim game_difficulty = $2558 ; 0=Pro, 1=Easy
    asteroid_timer = 0
    boss_asteroid_cooldown = 0
 
@@ -412,6 +412,9 @@ init_game
      px = 72 : px_hi = 1
      py = 90 : py_hi = 1
      
+    ; Capture Difficulty Setting (Lock it in)
+    if switchleftb then game_difficulty = 1 else game_difficulty = 0
+     
      
      ; Camera removed (Player Centric)
     
@@ -435,8 +438,6 @@ init_game
     
     gosub set_level_config
     
-    ; Capture Difficulty Setting (Lock it in)
-    if switchleftb then game_difficulty = 1 else game_difficulty = 0
     
     score0 = 0
     ; Initialize boss (Level 6)
@@ -1301,14 +1302,16 @@ check_collisions
          temp_v = bul_x[iter] - temp_w
          temp_v = temp_v - 2 ; Center Offset (Delta Center: Bul+2 - Enemy+4 = -2)
          if temp_v >= 128 then temp_v = 0 - temp_v
-         if temp_v >= 10 then goto skip_enemy_coll ; Threshold 7 (Easier)
+         temp_w = 10 : if game_difficulty = 1 then temp_w = 16
+         if temp_v >= temp_w then goto skip_enemy_coll
          
          ; Check Y Collision
          temp_w = ey_scr[temp_acc]
          temp_v = bul_y[iter] - temp_w
          temp_v = temp_v - 2 ; Center Offset
          if temp_v >= 128 then temp_v = 0 - temp_v
-         if temp_v >= 10 then goto skip_enemy_coll
+         temp_w = 10 : if game_difficulty = 1 then temp_w = 16
+         if temp_v >= temp_w then goto skip_enemy_coll
          
          ; Hit!
          blife[iter] = 0
@@ -1334,11 +1337,13 @@ skip_enemy_coll
          temp_v = bul_x[iter] - bfx_scr[temp_acc]
          temp_v = temp_v - 6 ; Center Offset
          if temp_v >= 128 then temp_v = 0 - temp_v
-         if temp_v >= 9 then goto skip_bul_bf
+         temp_w = 9 : if game_difficulty = 1 then temp_w = 15
+         if temp_v >= temp_w then goto skip_bul_bf
          
          temp_v = bul_y[iter] - bfy_scr[temp_acc]
          temp_v = temp_v - 6
-         if temp_v >= 128 then temp_v = 0 - temp_v
+         temp_w = 9 : if game_difficulty = 1 then temp_w = 15
+         if temp_v >= temp_w then goto skip_bul_bf
          if temp_v >= 9 then goto skip_bul_bf
          
          ; Hit!
@@ -2931,7 +2936,8 @@ level_complete_wait
 level_next_restore
    ; Reward Check
    ; Refresh Shield (+50, max 100)
-   player_shield = player_shield + 50
+    if game_difficulty = 1 then player_shield = 100
+    if game_difficulty = 0 then player_shield = player_shield + 50
    if player_shield > 100 then player_shield = 100
    
    if current_level = 5 then player_lives = player_lives + 1
@@ -3146,7 +3152,7 @@ set_level_config
    if current_level = 4 then enemy_move_mask = 0 : enemy_fire_cooldown = 25 : asteroid_move_mask = 0 : asteroid_base_speed = 1
    if current_level >= 5 then enemy_move_mask = 0 : enemy_fire_cooldown = 20 : asteroid_move_mask = 0 : asteroid_base_speed = 2
     ; Easy Mode Scaling (game_difficulty = 1)
-    if game_difficulty = 1 then enemy_move_mask = enemy_move_mask + 1
+    if game_difficulty = 1 then enemy_move_mask = enemy_move_mask | 1
     if game_difficulty = 1 then enemy_fire_cooldown = enemy_fire_cooldown + 10
     if game_difficulty = 1 then asteroid_base_speed = 1
    return

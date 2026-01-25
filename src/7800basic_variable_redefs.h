@@ -132,7 +132,7 @@ sprite_spaceship2_width = $04
 sprite_spaceship1_mode = $00
 sprite_spaceship1_width_twoscompliment = $1c
 sprite_spaceship1_width = $04
-game_difficulty = $2566
+game_difficulty = $2558
  
 py_hi = $2571
  
