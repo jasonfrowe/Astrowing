@@ -414,7 +414,7 @@ init_game
     player_lives = 3  ; Start with 3 lives (display will show 2 hearts = 2 extra lives)
     
     ; Initialize Level
-    current_level = 6
+    current_level = 1
     boss_checkpoint = 0 ; Reset Health Gate
     
     ; Initialize UI cache (Bug Fix #3)
@@ -603,13 +603,18 @@ ready_done
    ; ---- BF Cooldown ----
    if bf_fire_cooldown > 0 then bf_fire_cooldown = bf_fire_cooldown - 1
    
+   ; ---- Boss Update (All Levels) ----
+   gosub update_boss
+   
    ; ---- Collisions ----
    gosub check_collisions
    
 skip_enemy_updates
 
    ; Check for Game State Changes (Stack Safe)
-   if fighters_remaining <= 0 then goto level_complete
+   ; If fighters cleared, check boss state
+   if fighters_remaining <= 0 then if boss_state = 0 then gosub init_boss
+   if fighters_remaining <= 0 then if boss_state = 5 then goto level_complete
    if player_shield <= 0 then goto lose_life
 
    ; ---- Friction ----
@@ -649,8 +654,11 @@ skip_enemy_updates
     if current_level <> cached_level then gosub refresh_static_ui
     
     ; Boss Health Display
-    if current_level = 6 then if boss_hp <> cached_boss_hp then gosub refresh_static_ui
+    if boss_state > 0 && boss_state <= 4 then if boss_hp <> cached_boss_hp then gosub refresh_static_ui
+    if boss_state = 0 then goto main_skip_boss_ui
+    if boss_state > 4 then goto main_skip_boss_ui
     
+main_skip_boss_ui
     ; Dynamic values (update every frame)
     ; Shield (Left, Green, Palette 3)
     ; Shield (Left, Green, Palette 3)
@@ -673,8 +681,8 @@ skip_enemy_updates
     gosub draw_bf_bullet
 
      if alife > 0 then gosub draw_asteroid
-     if current_level = 6 then gosub draw_boss
-     if current_level = 6 then gosub draw_boss_indicator
+     if boss_on = 1 then gosub draw_boss
+     gosub draw_boss_indicator
      gosub draw_enemy_bullets
      
      ; Update Music
@@ -823,8 +831,6 @@ spawn_bullet
    ; Invert logic for Y? 
    ; Cos Table: Pos (0-127) = Down. Neg (128-255) = Up.
    ; We want "Forward" to be "Up" if angle is 0?
-   ; Angle 0: Sin=0, Cos=6.
-   ; If we face UP, we want Vy to be Negative.
    ; So if Cos is Positive, we want Negative Velocity.
    ; So we Negate the Cos table value.
    
@@ -1390,9 +1396,10 @@ skip_bf_bul_coll
 
       
       ; Also decrement fighter count (fighter destroyed) - not during boss level
-      if current_level <> 6 then fighters_remaining = fighters_remaining - 1
+      ; Also decrement fighter count (fighter destroyed)
+      if fighters_remaining > 0 then fighters_remaining = fighters_remaining - 1
       score0 = score0 + 100
-      if current_level <> 6 then fighters_bcd = converttobcd(fighters_remaining)
+      fighters_bcd = converttobcd(fighters_remaining)
       if fighters_remaining <= 0 then goto coll_done
       
       ; Check for death
@@ -1422,9 +1429,10 @@ skip_p_e
       if player_shield < temp_v then player_shield = 0 else player_shield = player_shield - temp_v
       
       ; Decrement fighter count (fighter destroyed) - not during boss level
-      if current_level <> 6 then fighters_remaining = fighters_remaining - 1
+      ; Decrement fighter count (fighter destroyed)
+      if fighters_remaining > 0 then fighters_remaining = fighters_remaining - 1
       score0 = score0 + 100
-      if current_level <> 6 then fighters_bcd = converttobcd(fighters_remaining)
+      fighters_bcd = converttobcd(fighters_remaining)
       if fighters_remaining <= 0 then goto coll_done
       
       if player_shield <= 0 then goto coll_done
@@ -1515,9 +1523,9 @@ check_enemy_ast_coll
       playsfx sfx_damage 0 ; Destruction sound (Enemy hits Asteroid)
       score0 = score0 + 50
       
-      ; Decrement fighter count - not during boss level
-      if current_level <> 6 then fighters_remaining = fighters_remaining - 1
-      if current_level <> 6 then fighters_bcd = converttobcd(fighters_remaining)
+      ; Decrement fighter count
+      if fighters_remaining > 0 then fighters_remaining = fighters_remaining - 1
+      fighters_bcd = converttobcd(fighters_remaining)
       if fighters_remaining <= 0 then goto coll_done
 
 skip_e_ast
@@ -1542,9 +1550,9 @@ skip_e_ast
       playsfx sfx_damage 0
       score0 = score0 + 50
       
-      ; Decrement fighters (not during boss)
-      if current_level <> 6 then fighters_remaining = fighters_remaining - 1
-      if current_level <> 6 then fighters_bcd = converttobcd(fighters_remaining)
+      ; Decrement fighters
+      if fighters_remaining > 0 then fighters_remaining = fighters_remaining - 1
+      fighters_bcd = converttobcd(fighters_remaining)
       if fighters_remaining <= 0 then goto coll_done
 skip_bf_ast
    next
@@ -1601,8 +1609,8 @@ check_player_ebul
 skip_ebul_coll
    next
 
-   ; Only check if Level 6 and boss is active
-   if current_level <> 6 then goto coll_done
+   ; Only check if boss is active
+   if boss_state = 0 then goto coll_done
    if boss_state = 0 then goto coll_done
    if boss_on = 0 then goto coll_done
    
@@ -1844,7 +1852,8 @@ a_y_done
 
 ; --- Boss (Level 6) ---
 boss_coords_check
-   if current_level <> 6 then boss_on = 0 : return
+boss_coords_check
+   ; Boss is active, check visibility
    if boss_state = 0 then boss_on = 0 : return
    
    ; Boss X
@@ -2103,7 +2112,8 @@ refresh_static_ui
     
     ; 2. Draw Boss Health (Alphabet)
     ; 2. Draw Boss Health (Alphabet)
-    if current_level <> 6 then goto skip_boss_ui
+    if boss_state = 0 then goto skip_boss_ui
+    if boss_state > 4 then goto skip_boss_ui
         
     ; Draw BOSS label
     plotchars 'BOSS' 5 64 10
@@ -2295,6 +2305,17 @@ draw_asteroid
 draw_boss
    if boss_on = 0 then return
    
+   if current_level >= 5 then goto draw_boss_composite
+   
+   ; Mini-Boss Rendering (Levels 1-4)
+   ; L1=01, L2=02, L3=03, L4=04
+   if current_level = 1 then plotsprite BossV2_01 6 boss_scr_x boss_scr_y
+   if current_level = 2 then plotsprite BossV2_02 6 boss_scr_x boss_scr_y
+   if current_level = 3 then plotsprite BossV2_03 6 boss_scr_x boss_scr_y
+   if current_level = 4 then plotsprite BossV2_04 6 boss_scr_x boss_scr_y
+   return
+
+draw_boss_composite
    ; Top Left
    plotsprite BossV2_01 6 boss_scr_x boss_scr_y
    
@@ -2404,6 +2425,7 @@ init_boss
    if boss_checkpoint = 1 then goto init_boss_checkpoint
    
    boss_hp = 100                     ; Boss health
+   if current_level < 5 then boss_hp = 50 ; Less HP for mini-bosses
    boss_state = 4                    ; Active state (Phase 4..1)
    goto init_boss_teleport
 
@@ -2462,15 +2484,23 @@ update_boss
    
    ; --- Timers ---
    if boss_fighter_timer > 0 then boss_fighter_timer = boss_fighter_timer - 1
-   if boss_fighter_timer = 0 then gosub attempt_boss_spawn_fighter
+   if boss_fighter_timer = 0 then gosub check_spawn_fighter
+   goto skip_fighter_spawn_check
+   
+check_spawn_fighter
+   if current_level >= 2 then gosub attempt_boss_spawn_fighter
+   if current_level < 2 then boss_fighter_timer = 60
+   
+skip_fighter_spawn_check
    
    if boss_asteroid_cooldown > 0 then boss_asteroid_cooldown = boss_asteroid_cooldown - 1
-   if boss_asteroid_cooldown = 0 then if boss_on = 1 then gosub boss_throw_asteroid
+   if boss_asteroid_cooldown = 0 then gosub boss_special_attack
    
    ; --- 0. Update Local Coordinates (Avoid Lag) ---
-   ; This ensures bvx/bvy are calculated against current position
-   boss_scr_x = boss_x
-   boss_scr_y = boss_y
+   ; REMOVED: Do not overwrite boss_scr_x/y with raw world coords.
+   ; update_render_coords handles this properly with high-byte logic.
+   ; boss_scr_x = boss_x
+   ; boss_scr_y = boss_y
 
    ; --- Boss Movement Logic ---
    if boss_on = 0 then bvx = 0 : bvy = 0 : return
@@ -2491,20 +2521,38 @@ update_boss
    if boss_scr_x > 160 then var90 = 0
    if var90 < temp_w then temp_w = var90 ; temp_w is Min X Dist
    
-   if temp_w < temp_v then goto boss_osc_vertical
+   ; Progressive Speed Calculation (Shared)
+   ; L1-2: Speed 2. L3-4: Speed 3. L5-6: Speed 4.
+   var90 = 2
+   if current_level >= 3 then var90 = 3
+   if current_level >= 5 then var90 = 4
+
+   ; Determine closest edge to find oscillation axis
+   temp_v = boss_scr_y ; Min Y dist (Top)
 
 boss_osc_horizontal
    bvy = 0
    boss_move_phase = boss_move_phase + 1
    if boss_move_phase >= 120 then boss_move_phase = 0
-   if boss_move_phase < 60 then bvx = 3 else bvx = 253
+   if boss_move_phase >= 120 then boss_move_phase = 0
+   ; Progressive Speed (Horizontal)
+   temp_v = var90
+   if boss_move_phase < 60 then bvx = temp_v 
+   if boss_move_phase >= 60 then bvx = 0 - temp_v
+   goto boss_apply_constraints
+   
+   ; Legacy logic replaced above
+   ; if boss_move_phase < 60 then bvx = 3 else bvx = 253
    goto boss_apply_constraints
 
 boss_osc_vertical
    bvx = 0
    boss_move_phase = boss_move_phase + 1
    if boss_move_phase >= 120 then boss_move_phase = 0
-   if boss_move_phase < 60 then bvy = 3 else bvy = 253
+   ; Progressive Speed (Vertical)
+   temp_v = var90
+   if boss_move_phase < 60 then bvy = temp_v 
+   if boss_move_phase >= 60 then bvy = 0 - temp_v
 
 boss_apply_constraints
 
@@ -2514,10 +2562,13 @@ boss_apply_constraints
    ; Left Edge (Covers wrapped range 210-255 and visible edge 0-24)
    if boss_scr_x < 24 || boss_scr_x >= 210 then bvx = 3 ; Force Right
    
-   ; Bottom Edge
-   if boss_scr_y > 168 && boss_scr_y < 192 then bvy = 253 ; Force Up
-   ; Top Edge (Covers wrapped range 192-255 and visible edge 0-24)
-   if boss_scr_y < 24 || boss_scr_y >= 192 then bvy = 3 ; Force Down
+   ; Bottom Edge (168..239)
+   ; 168 is safety line. 192 is actual bottom.
+   ; 192..239 is "Off Bottom" but not yet "Top Wrap" (240).
+   if boss_scr_y > 168 && boss_scr_y < 240 then bvy = 253 ; Force Up
+   
+   ; Top Edge (240..255 wrap and 0..24 visible)
+   if boss_scr_y < 24 || boss_scr_y >= 240 then bvy = 3 ; Force Down
 
    ; 3. Player Avoidance (40px safety box) - HIGHEST PRIORITY
    ; Boss Center
@@ -2526,7 +2577,7 @@ boss_apply_constraints
    ; Player Center
    var90 = px_scr + 8
    var91 = py_scr + 8
-   ; Deltas
+   ; Deltas (Absolute Distance)
    var92 = temp_v - var90
    if var92 >= 128 then var92 = 0 - var92
    var93 = temp_w - var91
@@ -2537,9 +2588,21 @@ boss_apply_constraints
    goto boss_move_apply
 
 boss_force_retreat
-   ; Recalculate signed direction to move away
-   if temp_v < var90 then bvx = 253 else bvx = 3 ; Move Left if P is Right
-   if temp_w < var91 then bvy = 253 else bvy = 3 ; Move Up if P is Down
+   ; Use computed deltas (var92, var93) which are abs-distance
+   ; Recalculate signed direction based on relative position
+   ; X check
+   temp_v = boss_scr_x + 16
+   var90 = px_scr + 8
+   ; If P < B (Left), Move Right (3). If P > B (Right), Move Left (253).
+   ; Check wrap-aware via subtraction
+   temp_acc = temp_v - var90
+   if temp_acc < 128 then bvx = 3 else bvx = 253
+   
+   ; Y check
+   temp_w = boss_scr_y + 32
+   var91 = py_scr + 8
+   temp_acc = temp_w - var91
+   if temp_acc < 128 then bvy = 3 else bvy = 253
 
 boss_move_apply
    ; Apply Velocities (Integer math, wrap-aware)
@@ -2639,6 +2702,24 @@ do_spawn_boss_fighter
    
    ; Reset Timer (2 seconds? 120 frames)
    boss_fighter_timer = 120 
+   return
+
+boss_special_attack
+   if boss_on = 0 then return
+   
+   ; Level 6: Asteroids
+   if current_level = 6 then goto boss_throw_asteroid
+   
+   ; Level 4-5: Blue Fighters
+   if current_level >= 4 then goto boss_spawn_blue_fighter
+   
+   ; Lower levels: No special attack, reset cooldown
+   boss_asteroid_cooldown = 60
+   return
+
+boss_spawn_blue_fighter
+   gosub spawn_blue_fighter
+   boss_asteroid_cooldown = 180 ; 3 seconds
    return
 
 boss_throw_asteroid
