@@ -404,7 +404,7 @@ init_game
      music_ptr_hi = 0 ; Force reset on next PlayMusic call
      ; Initialize Variables (Reset)
      ; Initialize Player at (256+80, 256+90) -> Center of 512x512
-     px = 80 : px_hi = 1
+     px = 72 : px_hi = 1
      py = 90 : py_hi = 1
      
      
@@ -1830,7 +1830,7 @@ update_render_coords
    ; Player (Center) is at Hi=2.
    ; Neighbors: Hi=1 (Left/Top) and Hi=2 (Right/Bottom/Center)
    
-   px_scr = 80
+   px_scr = 72
    py_scr = 90
    
    for iter = 0 to 3
@@ -3067,7 +3067,7 @@ restart_level_common
    savescreen
    
    ; Reset player position - Segment 1 (Center of 512x512)
-   px = 80 : py = 90
+   px = 72 : py = 90
    px_hi = 1 : py_hi = 1
    ; Camera removed
    
