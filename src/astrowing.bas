@@ -2912,7 +2912,10 @@ level_complete_wait
 
 level_next_restore
    ; Reward Check
-   if current_level = 3 then player_shield = 100
+   ; Refresh Shield (+50, max 100)
+   player_shield = player_shield + 50
+   if player_shield > 100 then player_shield = 100
+   
    if current_level = 5 then player_lives = player_lives + 1
 
    ; Advance to next level
