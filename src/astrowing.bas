@@ -797,7 +797,7 @@ spawn_bullet
    ; Center Bullet (Px + 8, Py + 8) -> Center of 16x16 sprite
    
    bul_x[iter] = px + 6
-   bul_y[iter] = py + 7
+   bul_y[iter] = py + 6
    
    ; No Hi Bytes needed for Screen Space Bullets
 
