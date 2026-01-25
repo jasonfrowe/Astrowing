@@ -1307,10 +1307,10 @@ check_collisions
          elife[temp_acc] = 18 ; Start Explosion (18 frames)
          playsfx sfx_damage 0 ; Destruction sound
          
-         ; Decrement Fighters Remaining (not during boss level)
-         if current_level <> 6 then fighters_remaining = fighters_remaining - 1
+         ; Decrement Fighters Remaining
+         if fighters_remaining > 0 then fighters_remaining = fighters_remaining - 1
          score0 = score0 + 100
-         if current_level <> 6 then fighters_bcd = converttobcd(fighters_remaining)
+         fighters_bcd = converttobcd(fighters_remaining)
          if fighters_remaining <= 0 then goto coll_done
          
          goto skip_enemy_coll ; Bullet used up
@@ -1338,8 +1338,8 @@ skip_enemy_coll
          bflife[temp_acc] = 18 ; Trigger explosion
          playsfx sfx_damage 0
          score0 = score0 + 250
-         if current_level <> 6 then fighters_remaining = fighters_remaining - 1
-         if current_level <> 6 then fighters_bcd = converttobcd(fighters_remaining)
+         if fighters_remaining > 0 then fighters_remaining = fighters_remaining - 1
+         fighters_bcd = converttobcd(fighters_remaining)
          if fighters_remaining <= 0 then goto coll_done
          goto skip_bullet_coll ; Bullet spent
 skip_bul_bf
