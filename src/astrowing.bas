@@ -1700,6 +1700,51 @@ coll_done
 
 boss_defeated
    ; Boss destroyed - trigger level complete
+   
+   ; Play Explosion Sound
+   gosub StopMusic
+   playsfx 1
+   
+   ; Boss Explosion Animation (8 frames)
+   boss_on = 0 ; Hide the actual boss sprite immediately
+   
+   for temp_val_hi = 0 to 7
+      for screen_timer = 0 to 10
+         restorescreen
+         
+         ; Draw Game State (Frozen)
+         gosub draw_stars
+         gosub draw_player_bullets
+         gosub draw_enemies
+         if alife > 0 then gosub draw_asteroid
+         gosub draw_enemy_bullets
+         
+         ; Draw Player (Use cached pos)
+         plotsprite sprite_spaceship1 5 px_scr py_scr 0
+         
+         ; Draw Explosion at Boss Location
+         ; Center the 16x16 explosion relative to the boss
+         ; L1/3 (16x16): Center +8,+8. Explosion Center +8,+8. Diff 0.
+         ; L2/4 (32x16): Center +16,+8. Diff X+8.
+         ; L5 (32x32): Center +16,+16. Diff X+8, Y+8.
+         
+         ; Simplified: Just use Boss top-left or centered based on level?
+         ; Let's align to the "main" part.
+         ; Simplified logic:
+         temp_v = boss_scr_x
+         temp_w = boss_scr_y
+         if current_level = 2 then temp_v = temp_v + 8
+         if current_level = 4 then temp_v = temp_v + 8
+         if current_level >= 5 then temp_v = temp_v + 8
+         if current_level >= 5 then temp_w = temp_w + 8
+         
+         plotsprite fighter_explode_00_conv 1 temp_v temp_w temp_val_hi
+         
+         drawscreen
+         frame = frame + 1
+      next
+   next
+
    boss_state = 5 ; State 5 = Defeated/Level Complete
    boss_on = 0
    fighters_remaining = 0
