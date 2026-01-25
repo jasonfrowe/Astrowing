@@ -796,8 +796,8 @@ spawn_bullet
    ; Screen Space Bullet Spawn (Tie to Screen)
    ; Center Bullet (Px + 8, Py + 8) -> Center of 16x16 sprite
    
-   bul_x[iter] = px 
-   bul_y[iter] = py
+   bul_x[iter] = px + 6
+   bul_y[iter] = py + 7
    
    ; No Hi Bytes needed for Screen Space Bullets
 
@@ -1830,8 +1830,8 @@ update_render_coords
    ; Player (Center) is at Hi=2.
    ; Neighbors: Hi=1 (Left/Top) and Hi=2 (Right/Bottom/Center)
    
-   px_scr = 80 - 4
-   py_scr = 90 - 8
+   px_scr = 80
+   py_scr = 90
    
    for iter = 0 to 3
       if elife[iter] = 0 then e_on[iter] = 0 : goto next_r_simple
