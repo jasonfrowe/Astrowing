@@ -303,6 +303,7 @@ reset_release_wait
    ; Global Coords Only
 
    ; Initialize music rotation timer (2 minutes = 7200 frames)
+    dim game_difficulty = $2566 ; 0=Pro, 1=Easy
    asteroid_timer = 0
    boss_asteroid_cooldown = 0
 
@@ -327,6 +328,10 @@ title_release_wait
     plotchars 'VERSION' 1 20 11
     plotchars '*+-/<' 7 60 1
     plotchars '20260122' 1 84 11
+    
+    ; Difficulty Display
+    plotchars 'DIFFICULTY' 1 20 9
+    if switchleftb then plotchars 'EASY' 5 108 9 else plotchars 'PRO ' 5 108 9
     
     drawscreen
     
@@ -429,6 +434,9 @@ init_game
     fighters_bcd = converttobcd(20)
     
     gosub set_level_config
+    
+    ; Capture Difficulty Setting (Lock it in)
+    if switchleftb then game_difficulty = 1 else game_difficulty = 0
     
     score0 = 0
     ; Initialize boss (Level 6)
@@ -3137,6 +3145,10 @@ set_level_config
    if current_level = 3 then enemy_move_mask = 1 : enemy_fire_cooldown = 30 : asteroid_move_mask = 1 : asteroid_base_speed = 1
    if current_level = 4 then enemy_move_mask = 0 : enemy_fire_cooldown = 25 : asteroid_move_mask = 0 : asteroid_base_speed = 1
    if current_level >= 5 then enemy_move_mask = 0 : enemy_fire_cooldown = 20 : asteroid_move_mask = 0 : asteroid_base_speed = 2
+    ; Easy Mode Scaling (game_difficulty = 1)
+    if game_difficulty = 1 then enemy_move_mask = enemy_move_mask + 1
+    if game_difficulty = 1 then enemy_fire_cooldown = enemy_fire_cooldown + 10
+    if game_difficulty = 1 then asteroid_base_speed = 1
    return
 
 you_win_game
