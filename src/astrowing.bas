@@ -47,7 +47,8 @@
    incgraphic graphics/arrows_04.png 160A
    
    incgraphic graphics/asteroid_M_conv.png
-   incgraphic graphics/Boss_conv.png
+   ; incgraphic graphics/Boss_conv.png
+   incgraphic graphics/Boss_v2.png
    
    ; Define custom mapping for scoredigits (0-9 + A-F)
    incgraphic graphics/unified_font.png 160A 0 1 2 3
@@ -407,7 +408,7 @@ init_game
     player_lives = 3  ; Start with 3 lives (display will show 2 hearts = 2 extra lives)
     
     ; Initialize Level
-    current_level = 1
+    current_level = 6
     boss_checkpoint = 0 ; Reset Health Gate
     
     ; Initialize UI cache (Bug Fix #3)
@@ -1325,9 +1326,12 @@ skip_enemy_coll
          bflife[temp_acc] = 18 ; Trigger explosion
          playsfx sfx_damage 0
          score0 = score0 + 250
+         if current_level <> 6 then fighters_remaining = fighters_remaining - 1
+         if current_level <> 6 then fighters_bcd = converttobcd(fighters_remaining)
+         if fighters_remaining <= 0 then goto coll_done
          goto skip_bullet_coll ; Bullet spent
 skip_bul_bf
-      next
+        next
       
 skip_bullet_coll
    next
@@ -1410,6 +1414,13 @@ skip_p_e
       playsfx sfx_damage 0
       temp_v = 2
       if player_shield < temp_v then player_shield = 0 else player_shield = player_shield - temp_v
+      
+      ; Decrement fighter count (fighter destroyed) - not during boss level
+      if current_level <> 6 then fighters_remaining = fighters_remaining - 1
+      score0 = score0 + 100
+      if current_level <> 6 then fighters_bcd = converttobcd(fighters_remaining)
+      if fighters_remaining <= 0 then goto coll_done
+      
       if player_shield <= 0 then goto coll_done
 skip_p_bf
    next
@@ -1524,6 +1535,11 @@ skip_e_ast
       bflife[iter] = 18 ; Explode
       playsfx sfx_damage 0
       score0 = score0 + 50
+      
+      ; Decrement fighters (not during boss)
+      if current_level <> 6 then fighters_remaining = fighters_remaining - 1
+      if current_level <> 6 then fighters_bcd = converttobcd(fighters_remaining)
+      if fighters_remaining <= 0 then goto coll_done
 skip_bf_ast
    next
 
@@ -1594,11 +1610,11 @@ skip_ebul_coll
       if temp_v >= 128 then temp_v = 0 - temp_v
       if temp_v >= 16 then goto skip_bul_boss ; Half boss width + bullet
       
-      ; Y Check (Boss is 64px tall)
+      ; Y Check (Boss is 32px tall)
       temp_v = bul_y[iter] - boss_scr_y
-      temp_v = temp_v - 32 ; Center boss offset (Height 64 / 2)
+      temp_v = temp_v - 16 ; Center boss offset (Height 32 / 2)
       if temp_v >= 128 then temp_v = 0 - temp_v
-      if temp_v >= 32 then goto skip_bul_boss ; Half boss height + bullet
+      if temp_v >= 16 then goto skip_bul_boss ; Half boss height (16) + bullet
       
       ; Hit!
       blife[iter] = 0
@@ -1622,7 +1638,7 @@ skip_bul_boss
    
    ; 2. Player vs Boss (Heavy damage)
    ; Player: 16x16 at (px_scr, py_scr) top-left
-   ; Boss: 32x64 at (boss_scr_x, boss_scr_y) top-left
+   ; Boss: 32x32 at (boss_scr_x, boss_scr_y) top-left
    ; Check if rectangles overlap
    
    ; X overlap: px_scr < boss_scr_x + 32 AND px_scr + 16 > boss_scr_x
@@ -1637,10 +1653,10 @@ skip_bul_boss
    
    ; Y Check - distance from player center to boss center
    temp_v = py_scr + 8 ; Player center Y
-   temp_w = boss_scr_y + 32 ; Boss center Y
+   temp_w = boss_scr_y + 16 ; Boss center Y
    temp_v = temp_v - temp_w
    if temp_v >= 128 then temp_v = 0 - temp_v
-   if temp_v >= 40 then goto coll_done ; No Y overlap (8+32=40)
+   if temp_v >= 24 then goto coll_done ; No Y overlap (8+16=24)
    
    ; Hit Player - Heavy Damage
    playsfx sfx_damage 0
@@ -2272,7 +2288,7 @@ draw_asteroid
 
 draw_boss
    if boss_on = 0 then return
-   plotsprite Boss_conv 6 boss_scr_x boss_scr_y
+   plotsprite Boss_v2 6 boss_scr_x boss_scr_y
    return
 
 draw_boss_indicator
@@ -2441,6 +2457,29 @@ update_boss
    ; --- AI Movement Logic (Wrap Aware) ---
    ; Only move if visible
    if boss_on = 0 then bvx = 0 : bvy = 0 : goto ai_move_exec
+   
+   bvy = 0 : bvy = 0 ; (Removed)
+   ; --- Restrict Hover at Edge ---
+   ; If Boss is not fully visible, FORCE CHASE (do not hover/match scroll).
+   ; This prevents Boss from getting stuck at edge matching scrolling.
+   
+   var94 = 1 ; Default: Fully Visible
+   
+   ; Check X Edge (Screen 0..160, Boss 32 wide)
+   ; Left: > 224 (Negative wrapped). Right: > 128 (160-32).
+   if boss_scr_x > 224 then var94 = 0
+   if boss_scr_x > 128 && boss_scr_x < 224 then var94 = 0
+   
+   ; Check Y Edge (Screen 0..192, Boss 32 tall)
+   ; Top: > 224. Bottom: > 160.
+   if boss_scr_y > 224 then var94 = 0
+   if boss_scr_y > 160 && boss_scr_y < 224 then var94 = 0
+   
+   goto ai_calc_start
+   
+   ; (force_stop_ai removed)
+
+ai_calc_start
 
    ; Calculate Target Coords (Player + Oscillation)
    temp_v = boss_osc_x
@@ -2545,8 +2584,34 @@ osc_y_done
    if var93 = 1 then var93 = 255
    if var93 = 254 then var93 = 0
    
-   if var93 = 0 then bvy = 6 else bvy = 250 ; Speed 6 (1.5 px)
-   if var91 = 0 then bvx = 250 else bvx = 6 ; Retreat X
+   bvy = 250 ; Speed 6 (1.5 px) -> Attack Y
+   
+   ; Retreat X Logic (Keep Distance ~40px)
+   ; Calculate Delta Magnitude (Abs)
+   temp_v = var90
+   if var91 = 255 then temp_v = 0 - var90
+   
+   ; If Distance < 40, Force Retreat (Move Away)
+   if temp_v < 40 then goto force_retreat_x
+   
+   ; Match Scroll (Hover) - Only if Fully Visible!
+   if var94 = 0 then goto chase_x_ret
+   
+   temp_v = vx_p / 16
+   if vx_m > 0 then temp_v = vx_m / 16 : temp_v = 0 - temp_v
+   bvx = temp_v
+   goto ai_move_exec
+   
+chase_x_ret
+   ; Chase X (Attack Speed)
+   if var91 = 0 then bvx = 6 else bvx = 250
+   goto ai_move_exec
+
+force_retreat_x
+   ; Check Direction to Move Away
+   ; If var91=0 (Player > Boss), Boss is Left. Move Left (250).
+   ; If var91=255 (Player < Boss), Boss is Right. Move Right (6).
+   if var91 = 0 then bvx = 250 else bvx = 6
    goto ai_move_exec
    
 ai_attack_x
@@ -2566,8 +2631,37 @@ osc_x_done
    if var91 = 1 then var91 = 255
    if var91 = 254 then var91 = 0
 
-   if var91 = 0 then bvx = 6 else bvx = 250 ; Speed 6
-   if var93 = 0 then bvy = 250 else bvy = 6 ; Retreat Y
+   bvx = 250 ; Speed 6 -> Attack X
+   
+   ; Retreat Y Logic (Keep Distance ~40px)
+   ; Calculate Delta Magnitude (Abs)
+   temp_v = var92
+   if var93 = 255 then temp_v = 0 - var92
+   
+   ; If Distance < 40, Force Retreat
+   if temp_v < 40 then goto force_retreat_y
+   
+   ; Match Scroll - Only if Fully Visible!
+   if var94 = 0 then goto chase_y_ret
+   
+   temp_v = vy_p / 16
+   if vy_m > 0 then temp_v = vy_m / 16 : temp_v = 0 - temp_v
+   bvy = temp_v
+   goto ai_move_exec
+   
+chase_y_ret
+   ; Chase Y (Attack Speed)
+   if var93 = 0 then bvy = 6 else bvy = 250
+   goto ai_move_exec
+
+force_retreat_y
+   ; Check Direction to Move Away
+   ; If var93=0 (Player > Boss), Boss is Above. Move Up (250).
+   ; Wait. var93=0 means Positive Delta (Target > Boss). Boss is LESS than Target. Boss is Above/Left.
+   ; If Boss < Py (var93=0), Boss is Above. Move UP (250) to retreat.
+   ; If Boss > Py (var93=255), Boss is Below. Move DOWN (6) to retreat.
+   if var93 = 0 then bvy = 250 else bvy = 6
+
    
 ai_move_exec
    ; --- Movement Application (Accumulator /4) ---
@@ -2692,19 +2786,13 @@ boss_throw_asteroid
    
    ; Aim at Dynamic Target (Player + Oscillation)
    
-   ; Target X
-   temp_v = boss_osc_x
-   var90 = px + temp_v
+   ; Target X (Directly at Player)
+   var90 = px
    var91 = px_hi
-   if temp_v < 128 then if var90 < px then var91 = var91 + 1
-   if temp_v >= 128 then if var90 > px then var91 = var91 - 1
 
-   ; Target Y
-   temp_v = boss_osc_y
-   var92 = py + temp_v
+   ; Target Y (Directly at Player)
+   var92 = py
    var93 = py_hi
-   if temp_v < 128 then if var92 < py then var93 = var93 + 1
-   if temp_v >= 128 then if var92 > py then var93 = var93 - 1
 
    ; X Delta: Target - ax
    temp_v = var90
@@ -2717,8 +2805,8 @@ boss_throw_asteroid
    if var91 = 254 then var91 = 0
    
    avx = 0
-   if var91 = 0 && var90 > 10 then avx = 10
-   if var91 = 255 then temp_v = 0 - var90 : if temp_v > 10 then avx = 246
+   if var91 = 0 && var90 > 10 then avx = 5
+   if var91 = 255 then temp_v = 0 - var90 : if temp_v > 10 then avx = 251
    
    ; Y Delta: Target - ay
    temp_v = var92
@@ -2736,8 +2824,8 @@ boss_throw_asteroid
    if var93 = 254 then var93 = 0
    
    avy = 0
-   if var93 = 0 && var92 > 10 then avy = 10
-   if var93 = 255 then temp_v = 0 - var92 : if temp_v > 10 then avy = 246
+   if var93 = 0 && var92 > 10 then avy = 5
+   if var93 = 255 then temp_v = 0 - var92 : if temp_v > 10 then avy = 251
    
    goto throw_done
    
