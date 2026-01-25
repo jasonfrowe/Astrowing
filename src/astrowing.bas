@@ -1615,9 +1615,10 @@ skip_ebul_coll
    if boss_on = 0 then goto coll_done
    
    ; Define Dynamic Hitbox based on Level
-   if current_level = 1 || current_level = 3 then temp_bx = 8 : temp_by = 8 : temp_w = 6 : temp_acc = 6
-   if current_level = 2 || current_level = 4 then temp_bx = 16 : temp_by = 8 : temp_w = 12 : temp_acc = 6
-   if current_level >= 5 then temp_bx = 16 : temp_by = 16 : temp_w = 12 : temp_acc = 12
+   ; 1. BULLET HITBOXES (Larger: 16x16, 32x16, 32x32)
+   if current_level = 1 || current_level = 3 then temp_bx = 8 : temp_by = 8 : temp_w = 8 : temp_acc = 8
+   if current_level = 2 || current_level = 4 then temp_bx = 16 : temp_by = 8 : temp_w = 16 : temp_acc = 8
+   if current_level >= 5 then temp_bx = 16 : temp_by = 16 : temp_w = 16 : temp_acc = 16
    
    ; 1. Bullets vs Boss
    for iter = 0 to 3
@@ -1662,7 +1663,12 @@ skip_ebul_coll
 skip_bul_boss
    next
    
-   ; 2. Player vs Boss (Heavy damage)
+   ; 2. Player vs Boss (Tight Hitboxes: 12x12, 24x12, 24x24)
+   ; Reset thresholds for player safety
+   if current_level = 1 || current_level = 3 then temp_w = 6 : temp_acc = 6
+   if current_level = 2 || current_level = 4 then temp_w = 12 : temp_acc = 6
+   if current_level >= 5 then temp_w = 12 : temp_acc = 12
+
    ; Player: 16x16 at (px_scr, py_scr) top-left
    ; Boss: 32x32 at (boss_scr_x, boss_scr_y) top-left
    ; Check if rectangles overlap
