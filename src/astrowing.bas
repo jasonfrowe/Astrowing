@@ -1311,11 +1311,11 @@ check_collisions
    ; Ship center (80, 98), Orb center (x+2, y+2). Center distance = abs(78 - ex)
    temp_v = energy_x - 78
    if temp_v >= 128 then temp_v = 0 - temp_v
-   if temp_v >= 20 then goto skip_energy_coll ; 20 pixel radius check
+   if temp_v >= 12 then goto skip_energy_coll ; Tightened radius check
    
    temp_v = energy_y - 96
    if temp_v >= 128 then temp_v = 0 - temp_v
-   if temp_v >= 20 then goto skip_energy_coll
+   if temp_v >= 12 then goto skip_energy_coll
    
    ; Collection!
    energy_on = 0
@@ -3240,6 +3240,9 @@ restart_level_common
    bflife[0]=0 : bflife[1]=0
    bf_bul_life = 0
    bf_fire_cooldown = 0
+   energy_on = 0
+   bf_kill_count = 0
+
    
    ; Immediate Spawn of Blue Fighters
    gosub spawn_blue_fighter ; Slot 0
