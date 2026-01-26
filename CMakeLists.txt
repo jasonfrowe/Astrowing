@@ -77,6 +77,11 @@ if(EXISTS ${CMAKE_SOURCE_DIR}/src/astrowing.bas)
     add_7800basic_target(astrowing src/astrowing.bas)
 endif()
 
+# Add astrowing_bnk target (128K Banked Version)
+if(EXISTS ${CMAKE_SOURCE_DIR}/src/astrowing_bnk.bas)
+    add_7800basic_target(astrowing_bnk src/astrowing_bnk.bas)
+endif()
+
 
 # Add sample programs
 # (Removed - Samples are reference only)
