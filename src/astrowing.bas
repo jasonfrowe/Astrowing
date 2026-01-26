@@ -2,7 +2,7 @@
    
    set 7800header 'name Astro Wing Startfighter'
 
-   ; set hssupport $4157
+   set hssupport $4157
    set zoneheight 16
 
    displaymode 160A
