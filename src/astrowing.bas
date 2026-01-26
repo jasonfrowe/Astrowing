@@ -30,6 +30,7 @@
    incgraphic graphics/bullet_conv.png
    incgraphic graphics/fighter.png
    incgraphic graphics/blue_fighter.png
+   incgraphic graphics/Energy.png
    ; Explosion Frames (Split for animation)
    incgraphic graphics/fighter_explode_00_conv.png
    incgraphic graphics/fighter_explode_01_conv.png
@@ -218,6 +219,14 @@
    dim bf_bul_vy = $25F1
    dim bf_bul_life = $25F2
    dim bf_fire_cooldown = $25F3
+
+   ; Energy Item Variables ($25F4-$25F9)
+   dim energy_x = $25F4
+   dim energy_y = $25F5
+   dim energy_x_hi = $25F6
+   dim energy_y_hi = $25F7
+   dim energy_on = $25F8
+   dim bf_kill_count = $25F9
 
    
    ; Aliases for plotsprite usage
@@ -451,6 +460,9 @@ init_game
     prize_active2 = 1
     prize_active3 = 1
     prize_active4 = 1
+    
+    energy_on = 0
+    bf_kill_count = 0
     ; Init Camera centered on 80,90 initially? 
     ; Let's start camera at 0,0 for now to match legacy behavior
      ; Init Done
@@ -688,6 +700,7 @@ main_skip_boss_ui
     gosub draw_player_bullets
     gosub draw_enemies
     gosub draw_blue_fighters
+    if energy_on <> 0 then if energy_x_hi = px_hi then if energy_y_hi = py_hi then plotsprite Energy 1 energy_x energy_y
     gosub draw_bf_bullet
 
      if alife > 0 then gosub draw_asteroid
@@ -1290,6 +1303,28 @@ spawn_asteroid
 
 
 check_collisions
+   ; 0. Player vs Energy (Priority Check)
+   if energy_on = 0 then goto skip_energy_coll
+   if energy_x_hi <> px_hi then goto skip_energy_coll
+   if energy_y_hi <> py_hi then goto skip_energy_coll
+   
+   ; Ship center (80, 98), Orb center (x+2, y+2). Center distance = abs(78 - ex)
+   temp_v = energy_x - 78
+   if temp_v >= 128 then temp_v = 0 - temp_v
+   if temp_v >= 20 then goto skip_energy_coll ; 20 pixel radius check
+   
+   temp_v = energy_y - 96
+   if temp_v >= 128 then temp_v = 0 - temp_v
+   if temp_v >= 20 then goto skip_energy_coll
+   
+   ; Collection!
+   energy_on = 0
+   playsfx sfx_laser 0
+   player_shield = player_shield + 20
+   if player_shield > 100 then player_shield = 100
+   
+skip_energy_coll
+
    ; 1. Bullets vs Enemies
    for iter = 0 to 3 ; Bullets
       if blife[iter] = 0 then goto skip_bullet_coll
@@ -1354,6 +1389,10 @@ skip_enemy_coll
          score0 = score0 + 250
          if fighters_remaining > 0 then fighters_remaining = fighters_remaining - 1
          fighters_bcd = converttobcd(fighters_remaining)
+         
+         ; Energy Item Drop Logic
+         bf_kill_count = bf_kill_count + 1
+         if bf_kill_count >= 4 then if energy_on = 0 then energy_on = 1 : energy_x = bfx[temp_acc] : energy_y = bfy[temp_acc] : energy_x_hi = bfx_hi[temp_acc] : energy_y_hi = bfy_hi[temp_acc] : bf_kill_count = 0
          if fighters_remaining <= 0 then goto coll_done
          goto skip_bullet_coll ; Bullet spent
 skip_bul_bf
@@ -1447,6 +1486,10 @@ skip_p_e
       if fighters_remaining > 0 then fighters_remaining = fighters_remaining - 1
       score0 = score0 + 100
       fighters_bcd = converttobcd(fighters_remaining)
+      
+      ; Energy Item Drop Logic
+      bf_kill_count = bf_kill_count + 1
+      if bf_kill_count >= 4 then if energy_on = 0 then energy_on = 1 : energy_x = bfx[iter] : energy_y = bfy[iter] : energy_x_hi = bfx_hi[iter] : energy_y_hi = bfy_hi[iter] : bf_kill_count = 0
       if fighters_remaining <= 0 then goto coll_done
       
       if player_shield <= 0 then goto coll_done
@@ -1591,6 +1634,7 @@ skip_bf_ast
 
 skip_ebul_ast
    next
+   
    
 check_player_ebul
    ; Check vs Enemy Bullets (Screen Space)
@@ -1935,7 +1979,6 @@ a_y_done
 
 ; --- Boss (Level 6) ---
 boss_coords_check
-boss_coords_check
    ; Boss is active, check visibility
    if boss_state = 0 then boss_on = 0 : return
    
@@ -2033,6 +2076,19 @@ check_wrap_x_a
       if ax_hi >= 2 then ax_hi = 0
 skip_shift_x_a
 
+   ; Energy Item
+   if energy_on = 0 then goto skip_shift_x_en
+      temp_v = energy_x
+      energy_x = energy_x - temp_bx
+      if temp_bx >= 128 then goto shift_add_x_en
+      if energy_x > temp_v then energy_x_hi = energy_x_hi - 1
+      goto check_wrap_x_en
+shift_add_x_en
+      if energy_x < temp_v then energy_x_hi = energy_x_hi + 1
+check_wrap_x_en
+      if energy_x_hi = 255 then energy_x_hi = 1
+      if energy_x_hi >= 2 then energy_x_hi = 0
+skip_shift_x_en
    ; Boss (Level 6)
    if boss_state = 0 then goto skip_shift_x_boss
       temp_v = boss_x
@@ -2121,6 +2177,19 @@ check_wrap_y_a
 
 skip_shift_y_a
 
+   ; Energy Item
+   if energy_on = 0 then goto skip_shift_y_en
+      temp_v = energy_y
+      energy_y = energy_y - temp_by
+      if temp_by >= 128 then goto shift_add_y_en
+      if energy_y > temp_v then energy_y_hi = energy_y_hi - 1
+      goto check_wrap_y_en
+shift_add_y_en
+      if energy_y < temp_v then energy_y_hi = energy_y_hi + 1
+check_wrap_y_en
+      if energy_y_hi = 255 then energy_y_hi = 1
+      if energy_y_hi >= 2 then energy_y_hi = 0
+skip_shift_y_en
    ; Boss (Level 6)
    if boss_state = 0 then goto skip_shift_y_boss
       temp_v = boss_y
