@@ -337,7 +337,7 @@ title_release_wait
     characterset unified_font
     plotchars 'VERSION' 1 20 11
     plotchars '*+-/<' 7 60 1
-    plotchars '20260122' 1 84 11
+    plotchars '20260125' 1 84 11
     
     ; Difficulty Display
     plotchars 'DIFFICULTY' 1 20 9
@@ -442,6 +442,9 @@ init_game
     
     ; Initialize Game State
     player_shield = 100
+    boss_state = 0
+    boss_on = 0
+
     
     fighters_remaining = 20  ; Level 1 starting value
     fighters_bcd = converttobcd(20)
@@ -614,8 +617,6 @@ ready_done
    ; ---- Asteroid Update ----
    gosub update_asteroid
    
-   ; ---- Boss Update (Level 6) ----
-   if current_level = 6 then gosub update_boss
    
    ; Blue Fighter update now runs BEFORE shift_universe (see above)
    
@@ -1320,7 +1321,7 @@ check_collisions
    ; Collection!
    energy_on = 0
    playsfx sfx_laser 0
-   player_shield = player_shield + 20
+   player_shield = player_shield + 10
    if player_shield > 100 then player_shield = 100
    
 skip_energy_coll
@@ -1353,11 +1354,10 @@ skip_energy_coll
          blife[iter] = 0
          elife[temp_acc] = 18 ; Start Explosion (18 frames)
          playsfx sfx_damage 0 ; Destruction sound
-         
-         ; Decrement Fighters Remaining
-         if fighters_remaining > 0 then fighters_remaining = fighters_remaining - 1
-         score0 = score0 + 100
-         fighters_bcd = converttobcd(fighters_remaining)
+                  ; Decrement Fighters Remaining
+          if current_level < 6 then if fighters_remaining > 0 then fighters_remaining = fighters_remaining - 1
+          score0 = score0 + 100
+          if current_level < 6 then fighters_bcd = converttobcd(fighters_remaining)
          if fighters_remaining <= 0 then goto coll_done
          
          goto skip_enemy_coll ; Bullet used up
@@ -1373,22 +1373,21 @@ skip_enemy_coll
          temp_v = bul_x[iter] - bfx_scr[temp_acc]
          temp_v = temp_v - 6 ; Center Offset
          if temp_v >= 128 then temp_v = 0 - temp_v
-         temp_w = 9 : if game_difficulty = 1 then temp_w = 15
+         temp_w = 13 : if game_difficulty = 1 then temp_w = 18
          if temp_v >= temp_w then goto skip_bul_bf
          
          temp_v = bul_y[iter] - bfy_scr[temp_acc]
          temp_v = temp_v - 6
-         temp_w = 9 : if game_difficulty = 1 then temp_w = 15
+         temp_w = 13 : if game_difficulty = 1 then temp_w = 18
          if temp_v >= temp_w then goto skip_bul_bf
-         if temp_v >= 9 then goto skip_bul_bf
          
          ; Hit!
          blife[iter] = 0
          bflife[temp_acc] = 18 ; Trigger explosion
          playsfx sfx_damage 0
          score0 = score0 + 250
-         if fighters_remaining > 0 then fighters_remaining = fighters_remaining - 1
-         fighters_bcd = converttobcd(fighters_remaining)
+          if current_level < 6 then if fighters_remaining > 0 then fighters_remaining = fighters_remaining - 1
+          if current_level < 6 then fighters_bcd = converttobcd(fighters_remaining)
          
          ; Energy Item Drop Logic
          bf_kill_count = bf_kill_count + 1
@@ -1450,9 +1449,9 @@ skip_bf_bul_coll
       
       ; Also decrement fighter count (fighter destroyed) - not during boss level
       ; Also decrement fighter count (fighter destroyed)
-      if fighters_remaining > 0 then fighters_remaining = fighters_remaining - 1
+      if current_level < 6 then if fighters_remaining > 0 then fighters_remaining = fighters_remaining - 1
       score0 = score0 + 100
-      fighters_bcd = converttobcd(fighters_remaining)
+      if current_level < 6 then fighters_bcd = converttobcd(fighters_remaining)
       if fighters_remaining <= 0 then goto coll_done
       
       ; Check for death
@@ -1483,9 +1482,9 @@ skip_p_e
       
       ; Decrement fighter count (fighter destroyed) - not during boss level
       ; Decrement fighter count (fighter destroyed)
-      if fighters_remaining > 0 then fighters_remaining = fighters_remaining - 1
+      if current_level < 6 then if fighters_remaining > 0 then fighters_remaining = fighters_remaining - 1
       score0 = score0 + 100
-      fighters_bcd = converttobcd(fighters_remaining)
+      if current_level < 6 then fighters_bcd = converttobcd(fighters_remaining)
       
       ; Energy Item Drop Logic
       bf_kill_count = bf_kill_count + 1
@@ -1581,8 +1580,8 @@ check_enemy_ast_coll
       score0 = score0 + 50
       
       ; Decrement fighter count
-      if fighters_remaining > 0 then fighters_remaining = fighters_remaining - 1
-      fighters_bcd = converttobcd(fighters_remaining)
+      if current_level < 6 then if fighters_remaining > 0 then fighters_remaining = fighters_remaining - 1
+      if current_level < 6 then fighters_bcd = converttobcd(fighters_remaining)
       if fighters_remaining <= 0 then goto coll_done
 
 skip_e_ast
@@ -1608,8 +1607,8 @@ skip_e_ast
       score0 = score0 + 50
       
       ; Decrement fighters
-      if fighters_remaining > 0 then fighters_remaining = fighters_remaining - 1
-      fighters_bcd = converttobcd(fighters_remaining)
+      if current_level < 6 then if fighters_remaining > 0 then fighters_remaining = fighters_remaining - 1
+      if current_level < 6 then fighters_bcd = converttobcd(fighters_remaining)
       if fighters_remaining <= 0 then goto coll_done
 skip_bf_ast
    next
@@ -3080,10 +3079,11 @@ level_complete_wait
 
 level_next_restore
    ; Reward Check
-   ; Refresh Shield (+50, max 100)
+    ; Refresh Shield (+50, max 100, or full on Level 3)
     if game_difficulty = 1 then player_shield = 100
     if game_difficulty = 0 then player_shield = player_shield + 50
-   if player_shield > 100 then player_shield = 100
+    if current_level = 3 then player_shield = 100 ; MAX HEALTH UP reward
+    if player_shield > 100 then player_shield = 100
    
    if current_level = 5 then player_lives = player_lives + 1
 
