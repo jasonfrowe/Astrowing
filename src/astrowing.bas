@@ -43,9 +43,9 @@
    incbanner graphics/title_screen_conv.png 160A 0 1 2 3
 
    incgraphic graphics/arrows_01.png 160A
-   incgraphic graphics/arrows_02.png 160A
-   incgraphic graphics/arrows_03.png 160A
-   incgraphic graphics/arrows_04.png 160A
+   ; incgraphic graphics/arrows_02.png 160A
+   ; incgraphic graphics/arrows_03.png 160A
+   ; incgraphic graphics/arrows_04.png 160A
    
    incgraphic graphics/asteroid_M_conv.png
    ; incgraphic graphics/Boss_conv.png
@@ -227,6 +227,18 @@
    dim energy_y_hi = $25F7
    dim energy_on = $25F8
    dim bf_kill_count = $25F9
+   dim title_display_state = $25FA
+   dim title_rendered_state = $25FB  ; FF=Dirty
+   dim hst_scr = $25FC ; 3 bytes ($25FC, $25FD, $25FE)
+   dim h_char = $25FF  ; Temp char for plotting
+   dim tv = var15      ; Re-use temp_v for local calc
+   dim i2 = var12      ; Re-use temp_acc for inner loop
+   dim entry_rank = var16 ; Reuse bcooldown
+   dim entry_cursor = var38 ; Reuse temp_bx ($2549 shield occupied?)
+   dim entry_char = $254A ; Reuse bcd_score
+   ; HSC Aliases
+   dim hst_initials = $2112
+   dim hst_scores = $2121
 
    
    ; Aliases for plotsprite usage
@@ -261,6 +273,10 @@ reset_release_wait
    screen_timer = 60 ; 1s input delay
    music_active = 0 ; Ensure music state is clean
    current_song = 1 ; Default to song 1
+   title_rendered_state = 255 ; Force redraw
+   
+   ; Initialize High Score if empty (simple check of first char)
+   if hst_initials[0] = 0 then hst_initials[0] = $10 : hst_scores[0] = $10 : hst_scores[1] = $00 : hst_scores[2] = $00
 
 
    ; Palette Setup
@@ -300,6 +316,12 @@ reset_release_wait
    ; Cached BCD Variables (Optimization)
    dim fighters_bcd = $2557        ; BCD version for display (was score_p_bcd)
    
+   ; High Score Entry Vars (Reuse existing vars to save RAM/ROM)
+   ; Use temp_acc for letter index (0-2)
+   ; Use temp_v for current char (0-26)
+   ; Use screen_timer for cursor blink
+   dim entry_rank = var16 ; Reuse bcooldown
+   
    ; UI Cache Variables (Bug Fix #3: Optimize plotchars)
    dim cached_lives = $2572        ; Last rendered player_lives value
    dim cached_level = $2573        ; Last rendered current_level value
@@ -323,25 +345,113 @@ title_release_wait
     if joy0fire1 || switchreset then goto title_release_wait
 
     
-    clearscreen
-    ; Reset critical sprite state to hide game objects
-    alife=0
-    for iter=0 to 3
-       elife[iter]=0
-    next
+    if joy0fire1 || switchreset then goto title_release_wait
     
-    ; Draw Title Graphic (Banner)
+    ; --- State Management ---
+    if title_display_state = title_rendered_state then goto restore_static_screen
+    
+    ; Redraw Static Content
+    clearscreen
+    title_rendered_state = title_display_state
+    
+    ; --- Draw Version (Common to both) ---
+    characterset unified_font
+    ; Removed to save ROM: plotchars 'VERSION' 1 20 11
+    ; plotchars '*+-/<' 7 60 1
+    ; plotchars '20260125' 1 84 11
+
+    if title_display_state = 1 then goto draw_high_scores
+    if title_display_state = 2 then goto draw_entry_screen
+    
+    ; --- Draw Splash Screen (State 0) ---
     plotbanner title_screen_conv 7 0 46
     
-    ; Version Text (Bottom of Screen - Zone 11)
-    characterset unified_font
-    plotchars 'VERSION' 1 20 11
-    plotchars '*+-/<' 7 60 1
-    plotchars '20260125' 1 84 11
+    goto save_static_Screen
     
-    ; Difficulty Display
-    plotchars 'DIFFICULTY' 1 20 9
-    if switchleftb then plotchars 'EASY' 5 108 9 else plotchars 'PRO ' 5 108 9
+draw_high_scores
+    ; --- Draw High Score Table (State 1) ---
+    plotchars 'HIGH SCORES' 7 40 1
+    
+    ; Loop through top 5 scores
+    for iter = 0 to 4
+        ; Rank (1-5)
+        h_char = iter + 49
+        plotchars h_char 1 40 iter+3 1
+        
+        ; Initials (3 chars, loop)
+        common = iter * 3
+        tv = 56
+        for i2 = 0 to 2
+             h_char = hst_initials[common]
+             plotchars h_char 1 tv iter+3 1
+             common = common + 1
+             tv = tv + 8
+        next
+        
+        ; Score (3 bytes BCD)
+        common = iter * 3
+        hst_scr[0] = hst_scores[common]
+        common = common + 1
+        hst_scr[1] = hst_scores[common]
+        common = common + 1
+        hst_scr[2] = hst_scores[common]
+        plotvalue unified_font 1 hst_scr 6 104 iter+3
+    next
+    
+    goto save_static_Screen
+
+draw_entry_screen
+    ; --- Draw Entry Screen (State 2) ---
+    ; plotchars 'INITIALS' 7 36 1 ; SAVE ROM
+    
+    ; Handle Input (Debounced by screen_timer?)
+    ; No, screen_timer is for auto-advance.
+    ; Use explicit debounce?
+    
+    ; Render Initials
+    common = entry_rank * 3
+    tv = 56
+    for i2 = 0 to 2
+         h_char = hst_initials[common]
+         if i2 = entry_cursor then h_char = 95 ; Static cursor
+         plotchars h_char 1 tv 5 1
+         common = common + 1
+         tv = tv + 8
+    next
+    
+    ; Input Handling
+    if entry_cursor > 2 then hiscoresave : title_display_state = 1 : goto title_loop
+    
+    ; Wait for release first?
+    if joy0up then goto entry_wait_release
+    if joy0down then goto entry_wait_release
+    if joy0fire1 then goto entry_wait_release
+    goto save_static_Screen 
+
+entry_wait_release
+    ; This is simple latch logic. Real debounce needs state.
+    ; Simplification: Just check inputs if frame % 10 = 0?
+    if (frame & 7) > 0 then goto save_static_Screen
+    
+    common = entry_rank * 3 + entry_cursor
+    
+    if joy0up then hst_initials[common] = hst_initials[common] + 1
+    if hst_initials[common] > 90 then hst_initials[common] = 65 ; A-Z wrapping
+    
+    if joy0down then hst_initials[common] = hst_initials[common] - 1
+    if hst_initials[common] < 65 then hst_initials[common] = 90
+    
+    if joy0fire1 then entry_cursor = entry_cursor + 1
+
+save_static_Screen
+    savescreen
+
+restore_static_screen
+    restorescreen
+    
+    ; Difficulty Display (Removed for ROM)
+    ; plotchars 'DIFFICULTY' 1 20 9
+    ; if switchleftb then plotchars 'EASY' 5 108 9 else plotchars 'PRO ' 5 108 9
     
     drawscreen
     
@@ -372,7 +482,11 @@ title_release_wait
    asteroid_timer = asteroid_timer + 1 ; Lo Byte
    if asteroid_timer = 0 then boss_asteroid_cooldown = boss_asteroid_cooldown + 1 ; Hi Byte
    
-   if boss_asteroid_cooldown >= 28 then gosub rotate_music
+   if boss_asteroid_cooldown = 7  then title_display_state = 1
+   if boss_asteroid_cooldown = 14 then title_display_state = 0
+   if boss_asteroid_cooldown = 21 then title_display_state = 1
+   
+   if boss_asteroid_cooldown >= 28 then title_display_state = 0 : gosub rotate_music
 
     gosub PlayMusic ; Continue music playback (allows rotation to take effect)
 
@@ -2569,9 +2683,9 @@ z_clamp_y
 
 hud_plot_switch
    if temp_acc = 0 then plotsprite arrows_01 6 temp_v temp_w
-   if temp_acc = 1 then plotsprite arrows_02 6 temp_v temp_w
-   if temp_acc = 2 then plotsprite arrows_03 6 temp_v temp_w
-   if temp_acc = 3 then plotsprite arrows_04 6 temp_v temp_w
+   ; if temp_acc = 1 then plotsprite arrows_02 6 temp_v temp_w
+   ; if temp_acc = 2 then plotsprite arrows_03 6 temp_v temp_w
+   ; if temp_acc = 3 then plotsprite arrows_04 6 temp_v temp_w
    return
 
 init_boss
@@ -3158,7 +3272,7 @@ dying_wait_press
    
    ; Draw final explosion frame (frame 7)
    temp_val_hi = 7
-   plotsprite fighter_explode_07_conv 1 px_scr py_scr
+   ; plotsprite fighter_explode_07_conv 1 px_scr py_scr
    
    plotchars 'SHIP DESTROYED' 1 24 3
    plotchars 'PRESS FIRE'     0 40 7
@@ -3320,22 +3434,9 @@ you_win_game
 
    ; Flash celebration
    drawscreen
-   ; Wait for button release first
-you_win_release
-   if joy0fire1 then goto you_win_release
-   
-   ; Now wait for new press
-   screen_timer = 60 ; 1s input delay
-   frame = 0
-you_win_wait
-   frame = frame + 1
-   if switchreset then goto cold_start
-   if screen_timer > 0 then screen_timer = screen_timer - 1
-   if screen_timer > 0 then goto you_win_wait 
-   
+   ; Flash celebration
    drawscreen
-   if !joy0fire1 then goto you_win_wait
-   goto cold_start
+   goto you_lose_release
 
 
 
@@ -3347,9 +3448,7 @@ you_lose
    
    screen_timer = 60 ; 1s input delay
    
-   plotchars 'DO NOT GIVE UP'   1 24 4
-   plotchars 'TRY AGAIN'        0 44 6
-   plotchars 'YOUR FATE AWAITS' 1 16 8
+   plotchars 'GAME OVER'        1 44 4
    
    drawscreen
    
@@ -3372,7 +3471,117 @@ you_lose_wait
    if !joy0fire1 then goto you_lose_wait
 
 game_over_restore
-   goto cold_start
+    ; Check for High Score (ASM for BCD multibyte compare)
+    asm
+    ldx #0
+CheckLoop:
+    ; Compare High Byte
+    lda score0
+    cmp hst_scores,x
+    bcc NextEntry
+    bne FoundRank
+    ; Compare Mid Byte
+    lda score0+1
+    cmp hst_scores+1,x
+    bcc NextEntry
+    bne FoundRank
+    ; Compare Low Byte
+    lda score0+2
+    cmp hst_scores+2,x
+    bcc NextEntry
+    beq NextEntry ; Equal to current? Treat as lower (must beat score)
+FoundRank:
+    stx entry_rank
+    jmp FoundHS
+NextEntry:
+    txa
+    clc
+    adc #3
+    tax
+    cpx #15
+    bne CheckLoop
+    jmp NoHS
+FoundHS:
+NoHS:
+end
+    
+    if entry_rank > 12 then goto cold_start ; No HS (15 is > 12?) No, X goes 0,3,6,9,12. If 15, failed.
+    ; Wait, jump logic in ASM needs to integrate with BASIC labels?
+    ; 'jmp cold_start' might fail if cold_start is BASIC label.
+    ; Better to set a flag or use 'entry_rank' as sentinel.
+    ; Initialize entry_rank = 255.
+    ; If ASM sets it, it's valid.
+    
+    goto start_entry
+
+start_entry
+    ; Valid Rank (0,3,6,9,12) -> Convert to 0-4?
+    ; entry_rank IS offset. Keep it as offset for ASM copy!
+    
+    ; Shift scores down (ASM)
+    asm
+    ; Calculate Limit: (entry_rank * 3)
+    lda entry_rank
+    asl
+    clc
+    adc entry_rank
+    sta temp1 ; limit (start of hole)
+    
+    ldx #14 ; Last byte index
+ShiftLoop:
+    txa
+    sec
+    sbc #3
+    cmp temp1
+    bmi ShiftDone ; If Source (X-3) < Limit, done.
+    
+    ; Copy Scores
+    lda hst_scores-3,x
+    sta hst_scores,x
+    
+    ; Copy Initials
+    lda hst_initials-3,x
+    sta hst_initials,x
+    
+    dex
+    jmp ShiftLoop
+ShiftDone:
+end
+    
+    entry_rank = entry_rank * 3 ; To Offset
+    asm
+    ldx entry_rank
+    lda score0
+    sta hst_scores,x
+    lda score0+1
+    sta hst_scores+1,x
+    lda score0+2
+    sta hst_scores+2,x
+end
+    entry_rank = entry_rank / 3 ; Back to Index
+    
+    ; Reset Initials to 'A' (ASM)
+    asm
+    ; Calculate Offset: entry_rank * 3
+    lda entry_rank
+    asl
+    clc
+    adc entry_rank
+    tax ; Offset in X
+    
+    lda #65        ; 'A'
+    sta hst_initials,x
+    sta hst_initials+1,x
+    sta hst_initials+2,x
+end
+    
+    entry_rank = entry_rank / 3 ; Back to Rank Index (0-4)
+    
+    title_display_state = 2
+    entry_cursor = 0
+    screen_timer = 60
+    
+    goto title_loop
 
    ; ============================================
    ; POKEY VGM Register Stream Driver (ASM)

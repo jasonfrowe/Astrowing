@@ -149,11 +149,29 @@ Variables manually allocated to the upper RAM block using `dim var = $Address`.
 | `$25F1` | `bf_bul_vy` | Blue Fighter Bul VY | |
 | `$25F2` | `bf_bul_life` | Blue Fighter Bul Life | |
 | `$25F3` | `bf_fire_cooldown`| BF Fire Cooldown | |
-| `$25F4-25FF` | (Reserved) | | |
+| `$25F4` | `energy_x` | Energy Item X | |
+| `$25F5` | `energy_y` | Energy Item Y | |
+| `$25F6` | `energy_x_hi` | Energy Item X (High) | |
+| `$25F7` | `energy_y_hi` | Energy Item Y (High) | |
+| `$25F8` | `energy_on` | Energy Item Active Flag | |
+| `$25F9` | `bf_kill_count` | Blue Fighter Kill Counter | |
+| `$25FA` | `title_display_state` | Display State | 0=Splash, 1=High Score |
+| `$25FB` | `title_rendered_state`| Rendered State | FF=Dirty |
+| `$25FC-25FE` | `hst_scr` | High Score Buffer | 3 bytes for BCD |
+| `$25FF` | `h_char` | Char Temp | |
 
 ---
 
-## 3. POKEY / ASM Hardware Usage
+## 3. High Score Cartridge (HSC) RAM ($2100 - $21FF)
+
+| Address | Alias | Description | Notes |
+| :--- | :--- | :--- | :--- |
+| `$2112-2120` | `hst_initials` | High Score Initials | 3 bytes * 5 entries |
+| `$2121-212F` | `hst_scores` | High Score BCD | 3 bytes * 5 entries |
+
+---
+
+## 4. POKEY / ASM Hardware Usage
 The custom POKEY driver at the end of `astrowing.bas` uses the following resources:
 
 ### Hardware Registers

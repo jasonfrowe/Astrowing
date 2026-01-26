@@ -21,15 +21,6 @@ asteroid_M_conv_tallsprite_00_width = $04
 asteroid_M_conv_mode = $00
 asteroid_M_conv_width_twoscompliment = $1c
 asteroid_M_conv_width = $04
-arrows_04_mode = $00
-arrows_04_width_twoscompliment = $1e
-arrows_04_width = $02
-arrows_03_mode = $00
-arrows_03_width_twoscompliment = $1e
-arrows_03_width = $02
-arrows_02_mode = $00
-arrows_02_width_twoscompliment = $1e
-arrows_02_width = $02
 arrows_01_mode = $00
 arrows_01_width_twoscompliment = $1e
 arrows_01_width = $02
@@ -149,6 +140,8 @@ cached_level = $2573
  
 cached_lives = $2572
  
+entry_rank = var16
+ 
 fighters_bcd = $2557
  
 prize_active4 = $25A9
@@ -200,6 +193,28 @@ bul_x3 = var21
 bul_x2 = var20 
 bul_x1 = var19 
 bul_x0 = var18 
+hst_scores = $2121
+ 
+hst_initials = $2112
+ 
+entry_char = $254A
+ 
+entry_cursor = var38
+ 
+entry_rank = var16
+ 
+i2 = var12
+ 
+tv = var15
+ 
+h_char = $25FF
+ 
+hst_scr = $25FC
+ 
+title_rendered_state = $25FB
+ 
+title_display_state = $25FA
+ 
 bf_kill_count = $25F9
  
 energy_on = $25F8
@@ -712,12 +727,6 @@ asteroid_M_conv_color3 = $0f
 asteroid_M_conv_color2 = $38
 asteroid_M_conv_color1 = $1d
 asteroid_M_conv_color0 = $00
-arrows_04_color1 = $82
-arrows_04_color0 = $00
-arrows_03_color1 = $82
-arrows_03_color0 = $00
-arrows_02_color1 = $82
-arrows_02_color0 = $00
 arrows_01_color1 = $82
 arrows_01_color0 = $00
 title_screen_conv_color3 = title_screen_conv00_color3
