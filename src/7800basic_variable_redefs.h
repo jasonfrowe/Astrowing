@@ -200,6 +200,8 @@ bul_x3 = var21
 bul_x2 = var20 
 bul_x1 = var19 
 bul_x0 = var18 
+energy_timer = $25FA
+ 
 bf_kill_count = $25F9
  
 energy_on = $25F8

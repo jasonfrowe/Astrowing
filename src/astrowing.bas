@@ -227,6 +227,7 @@
    dim energy_y_hi = $25F7
    dim energy_on = $25F8
    dim bf_kill_count = $25F9
+   dim energy_timer = $25FA ; 4-second timeout timer
 
    
    ; Aliases for plotsprite usage
@@ -559,6 +560,9 @@ ready_done
    gosub cycle_stars
    
    ; ---- Physics Update ----
+
+   ; ---- Energy Orb Timeout ----
+   if energy_on = 1 then energy_timer = energy_timer - 1 : if energy_timer = 0 then energy_on = 0
 
    ; ---- Physics Update (Shifting World) ----
    ; Calculate Global Scroll Deltas (temp_bx, temp_by)
@@ -1392,7 +1396,7 @@ skip_enemy_coll
          
          ; Energy Item Drop Logic
          bf_kill_count = bf_kill_count + 1
-         if bf_kill_count >= 4 then if energy_on = 0 then energy_on = 1 : energy_x = bfx[temp_acc] : energy_y = bfy[temp_acc] : energy_x_hi = bfx_hi[temp_acc] : energy_y_hi = bfy_hi[temp_acc] : bf_kill_count = 0
+         if bf_kill_count >= 4 then if energy_on = 0 then energy_on = 1 : energy_timer = 240 : energy_x = bfx[temp_acc] : energy_y = bfy[temp_acc] : energy_x_hi = bfx_hi[temp_acc] : energy_y_hi = bfy_hi[temp_acc] : bf_kill_count = 0
          if fighters_remaining <= 0 then goto coll_done
          goto skip_bullet_coll ; Bullet spent
 skip_bul_bf
@@ -1489,7 +1493,7 @@ skip_p_e
       
       ; Energy Item Drop Logic
       bf_kill_count = bf_kill_count + 1
-      if bf_kill_count >= 4 then if energy_on = 0 then energy_on = 1 : energy_x = bfx[iter] : energy_y = bfy[iter] : energy_x_hi = bfx_hi[iter] : energy_y_hi = bfy_hi[iter] : bf_kill_count = 0
+      if bf_kill_count >= 4 then if energy_on = 0 then energy_on = 1 : energy_timer = 240 : energy_x = bfx[iter] : energy_y = bfy[iter] : energy_x_hi = bfx_hi[iter] : energy_y_hi = bfy_hi[iter] : bf_kill_count = 0
       if fighters_remaining <= 0 then goto coll_done
       
       if player_shield <= 0 then goto coll_done
