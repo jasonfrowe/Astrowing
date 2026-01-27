@@ -2,7 +2,7 @@
    
    set 7800header 'name Astro Wing Startfighter'
 
-   set hssupport $4157
+   ; set hssupport $4157
    set zoneheight 16
 
    displaymode 160A
@@ -1339,7 +1339,7 @@ skip_energy_coll
          temp_v = bul_x[iter] - temp_w
          temp_v = temp_v - 2 ; Center Offset (Delta Center: Bul+2 - Enemy+4 = -2)
          if temp_v >= 128 then temp_v = 0 - temp_v
-         temp_w = 16 : if game_difficulty = 1 then temp_w = 17
+         temp_w = 15 : if game_difficulty = 1 then temp_w = 16
          if temp_v >= temp_w then goto skip_enemy_coll
          
          ; Check Y Collision
@@ -1347,7 +1347,7 @@ skip_energy_coll
          temp_v = bul_y[iter] - temp_w
          temp_v = temp_v - 2 ; Center Offset
          if temp_v >= 128 then temp_v = 0 - temp_v
-         temp_w = 16 : if game_difficulty = 1 then temp_w = 17
+         temp_w = 15 : if game_difficulty = 1 then temp_w = 16
          if temp_v >= temp_w then goto skip_enemy_coll
          
          ; Hit!
@@ -1719,6 +1719,38 @@ skip_ebul_coll
       
 skip_bul_boss
    next
+   
+   ; 1b. Boss vs Asteroid (Defensive Warp - Levels 1-5)
+   if current_level >= 6 then goto skip_boss_ast
+   if boss_state = 0 then goto skip_boss_ast
+   if boss_on = 0 then goto skip_boss_ast
+   if a_on = 0 then goto skip_boss_ast
+   
+   temp_bx = 8 : temp_by = 8 ; Default 16x16 (L1, L3)
+   temp_w = 16 ; X Threshold (8+8)
+   temp_acc = 16 ; Y Threshold (8+8)
+   
+   if current_level = 2 || current_level = 4 then temp_bx = 16 : temp_w = 24
+   if current_level = 5 then temp_bx = 16 : temp_by = 16 : temp_w = 24 : temp_acc = 24
+   
+   ; X Check (Center-to-Center)
+   temp_v = ax_scr + 8
+   var92 = boss_scr_x + temp_bx
+   temp_v = temp_v - var92
+   if temp_v >= 128 then var90 = 0 - temp_v else var90 = temp_v
+   if var90 >= temp_w then goto skip_boss_ast
+   
+   ; Y Check
+   temp_v = ay_scr + 8
+   var92 = boss_scr_y + temp_by
+   temp_v = temp_v - var92
+   if temp_v >= 128 then var90 = 0 - temp_v else var90 = temp_v
+   if var90 >= temp_acc then goto skip_boss_ast
+
+   ; Collision Confirmed - Warp Boss!
+   gosub teleport_boss
+   
+skip_boss_ast
    
    ; 2. Player vs Boss (Tight Hitboxes: 12x12, 24x12, 24x24)
    ; Reset thresholds for player safety
