@@ -260,7 +260,7 @@ reset_release_wait
    
    screen_timer = 60 ; 1s input delay
    music_active = 0 ; Ensure music state is clean
-   current_song = 1 ; Default to song 1
+    if current_song = 0 then current_song = 1 ; Default to song 1 on first boot only
 
 
    ; Palette Setup
@@ -1339,7 +1339,7 @@ skip_energy_coll
          temp_v = bul_x[iter] - temp_w
          temp_v = temp_v - 2 ; Center Offset (Delta Center: Bul+2 - Enemy+4 = -2)
          if temp_v >= 128 then temp_v = 0 - temp_v
-         temp_w = 10 : if game_difficulty = 1 then temp_w = 16
+         temp_w = 16 : if game_difficulty = 1 then temp_w = 17
          if temp_v >= temp_w then goto skip_enemy_coll
          
          ; Check Y Collision
@@ -1347,7 +1347,7 @@ skip_energy_coll
          temp_v = bul_y[iter] - temp_w
          temp_v = temp_v - 2 ; Center Offset
          if temp_v >= 128 then temp_v = 0 - temp_v
-         temp_w = 10 : if game_difficulty = 1 then temp_w = 16
+         temp_w = 16 : if game_difficulty = 1 then temp_w = 17
          if temp_v >= temp_w then goto skip_enemy_coll
          
          ; Hit!
@@ -1373,12 +1373,12 @@ skip_enemy_coll
          temp_v = bul_x[iter] - bfx_scr[temp_acc]
          temp_v = temp_v - 6 ; Center Offset
          if temp_v >= 128 then temp_v = 0 - temp_v
-         temp_w = 13 : if game_difficulty = 1 then temp_w = 18
+         temp_w = 18 : if game_difficulty = 1 then temp_w = 19
          if temp_v >= temp_w then goto skip_bul_bf
          
          temp_v = bul_y[iter] - bfy_scr[temp_acc]
          temp_v = temp_v - 6
-         temp_w = 13 : if game_difficulty = 1 then temp_w = 18
+         temp_w = 18 : if game_difficulty = 1 then temp_w = 19
          if temp_v >= temp_w then goto skip_bul_bf
          
          ; Hit!

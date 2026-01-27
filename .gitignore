@@ -67,7 +67,7 @@ desktop.ini
 /src/graphics/lives_icon.png
 /src/graphics/spaceship.png
 
-
+/src/7800basic_local/
 
 CMakePresets.json
 CMakeUserPresets.json   
