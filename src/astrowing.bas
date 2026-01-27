@@ -261,6 +261,11 @@ reset_release_wait
    
    screen_timer = 60 ; 1s input delay
    music_active = 0 ; Ensure music state is clean
+   music_ptr_hi = 0 ; Reset music pointer
+   boss_state = 0 ; Reset boss state (prevents music logic from thinking boss is active)
+   asteroid_timer = 0 ; Reset rotation timer
+   boss_asteroid_cooldown = 0 ; Reset rotation timer
+   
     if current_song = 0 then current_song = 1 ; Default to song 1 on first boot only
 
 
@@ -337,9 +342,9 @@ title_release_wait
     
     ; Version Text (Bottom of Screen - Zone 11)
     characterset unified_font
-    plotchars 'VERSION' 1 20 11
+    plotchars 'VERSION' 1 12 11
     plotchars '*+-/<' 7 60 1
-    plotchars '20260125' 1 84 11
+    plotchars '20260126' 1 84 11
     
     ; Difficulty Display
     plotchars 'DIFFICULTY' 1 20 9
@@ -3389,10 +3394,11 @@ you_lose
    
    screen_timer = 60 ; 1s input delay
    
-   plotchars 'DO NOT GIVE UP'   1 24 4
+   ; plotchars 'DO NOT GIVE UP'   1 24 4
    plotchars 'TRY AGAIN'        0 44 6
    plotchars 'YOUR FATE AWAITS' 1 16 8
    
+   plotvalue unified_font 0 score0 6 56 0
    drawscreen
    
    ; Wait for button release
