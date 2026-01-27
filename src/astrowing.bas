@@ -318,6 +318,7 @@ reset_release_wait
    boss_asteroid_cooldown = 0
 
 title_loop
+    current_level = 0 ; Ensure title music rotation works
     ; Wait for button release first (prevent skipping from game over/win screens)
 title_release_wait
     if joy0fire1 || switchreset then goto title_release_wait
