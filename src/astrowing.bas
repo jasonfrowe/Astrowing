@@ -3085,6 +3085,253 @@ spawn_boss_bullet
    return
 
    ; ============================================
+   ; Ending screens: victory and game over
+   ; ============================================
+   ; Shared RAM on the $2600 page (free while these screens run)
+   dim es_x = $2650     ; [8] star x
+   dim es_y = $2658     ; [8] star y
+   dim es_v = $2660     ; [8] star speed
+   dim es_t = $2668     ; time on this screen (stops at 255)
+   dim es_sx = $2669    ; ship x
+   dim es_sy = $266A    ; ship y
+   dim es_fr = $266B    ; ship frame (game over tumble)
+   dim es_by = $266C    ; ship y with the bob (victory)
+   dim es_ready = $266D ; 1 = fire released after the text, so fire continues
+   dim deb_x = $2670    ; [4] debris
+   dim deb_y = $2674    ; [4]
+
+victory_screen
+   ; Hyperspace stars, the ship rising with the five relics circling it,
+   ; the story a line at a time, to the title song.
+   gosub StopMusic
+   boss_state = 0 : current_level = 0
+   gosub PlayMusic
+   gosub set_palettes
+   for iter = 0 to 7
+      temp_v = rand & 127 : es_x[iter] = temp_v + 16
+      temp_v = rand : if temp_v > 191 then temp_v = temp_v - 64
+      es_y[iter] = temp_v
+      temp_v = rand & 3 : es_v[iter] = temp_v + 2
+   next
+   es_t = 0 : es_ready = 0 : es_sy = 200 : es_by = 200
+   gosub victory_text
+
+victory_loop
+   restorescreen
+
+   ; stars streaming down
+   for iter = 0 to 7
+      temp_v = es_y[iter] + es_v[iter]
+      if temp_v > 191 then temp_v = 0 : temp_w = rand & 127 : es_x[iter] = temp_w + 16
+      es_y[iter] = temp_v
+   next
+
+   ; the ship rises to y 84, then bobs gently
+   if es_sy > 84 then es_sy = es_sy - 2
+   es_by = es_sy
+   if es_sy <= 84 then temp_v = (frame / 8) & 15 : es_by = 84 + bob_table[temp_v]
+
+   ; the story, a line at a time
+   if es_t < 255 then es_t = es_t + 1
+   if es_t = 40 || es_t = 100 then gosub victory_text
+   if es_t = 160 || es_t = 220 then gosub victory_text
+
+   ; VICTORY and the relics glow through the title's colours
+   temp_acc = frame / 4
+   temp_v = (12 + temp_acc) & 15 : P7C1 = (temp_v * 16) + 8
+   temp_v = (4 + temp_acc) & 15 : P7C2 = (temp_v * 16) + 6
+   temp_v = (1 + temp_acc) & 15 : P7C3 = (temp_v * 16) + 12
+
+   ; fire (a fresh press, not one held from before): skip to the end of
+   ; the story, then on to the high scores
+   if switchreset then goto cold_start
+   if !joy0fire1 then es_ready = 1
+   if es_ready = 0 || !joy0fire1 then goto victory_input_done
+   es_ready = 0
+   if es_t >= 220 then goto enter_hiscore
+   es_t = 219
+victory_input_done
+
+   ; ---- draw ----
+   for iter = 0 to 7
+      temp_v = es_x[iter] : temp_w = es_y[iter]
+      plotsprite bullet_conv 4 temp_v temp_w
+   next
+   plotsprite sprite_spaceship1 5 72 es_by 0
+
+   ; relics join one at a time once the ship has arrived, then circle it
+   if es_t < 60 then goto victory_no_relics
+   temp_bx = es_t - 60 : temp_bx = temp_bx / 10
+   if temp_bx > 4 then temp_bx = 4
+   temp_by = frame / 4
+   for iter = 0 to temp_bx
+      temp_acc = relic_spacing[iter] + temp_by : temp_acc = temp_acc & 15
+      temp_v = 76 + orbit_x[temp_acc]
+      temp_w = es_by + orbit_y[temp_acc] : temp_w = temp_w - 3
+      plotsprite relic_gfx 7 temp_v temp_w iter
+   next
+victory_no_relics
+
+   if es_t >= 220 then if (frame & 32) > 0 then plotchars 'PRESS FIRE' 0 40 11
+   drawscreen
+   frame = frame + 1
+   goto victory_loop
+
+victory_text
+   ; the parts that don't move, saved so each frame only plots what moves
+   clearscreen
+   plotvalue unified_font 0 score0 6 56 0
+   plotchars 'VICTORY' 7 52 2
+   if es_t >= 40 then plotchars 'RELICS RECOVERED' 1 16 3
+   if es_t >= 100 then plotchars 'THE GALAXY IS SAFE' 3 8 9
+   if es_t >= 160 then plotchars 'THANKS FOR PLAYING' 5 8 10
+   savescreen
+   return
+
+gameover_screen
+   ; The wreck tumbles away and fades, debris flies off, GAME OVER pulses,
+   ; and how far you got: the sector and the relics you'd won.
+   gosub StopMusic
+   gosub set_palettes
+   playsfx sfx_gameover
+   for iter = 0 to 7
+      temp_v = rand & 127 : es_x[iter] = temp_v + 16
+      temp_v = rand : if temp_v > 191 then temp_v = temp_v - 64
+      es_y[iter] = temp_v
+   next
+   for iter = 0 to 3
+      deb_x[iter] = 78 : deb_y[iter] = 74
+   next
+   es_t = 0 : es_ready = 0 : es_sx = 72 : es_sy = 66 : es_fr = 0
+   gosub gameover_text
+
+gameover_loop
+   restorescreen
+   if es_t < 255 then es_t = es_t + 1
+
+   ; stars drift slowly
+   if (frame & 3) = 0 then gosub gameover_stars
+
+   ; the wreck tumbles and drifts away
+   if (frame & 7) = 0 then es_fr = es_fr + 1 : es_fr = es_fr & 15
+   if (frame & 3) = 0 then if es_sy < 124 then es_sy = es_sy + 1
+   if (frame & 7) = 0 then if es_sx < 110 then es_sx = es_sx + 1
+
+   ; ...and fades (luminance down to 2, every 16 frames)
+   if (frame & 15) = 0 then gosub gameover_fade
+
+   ; debris flies out for the first 48 frames
+   if es_t < 48 then deb_x[0] = deb_x[0] - 1 : deb_y[0] = deb_y[0] - 1 : deb_x[1] = deb_x[1] + 1 : deb_y[1] = deb_y[1] - 1
+   if es_t < 48 then deb_x[2] = deb_x[2] - 2 : deb_y[2] = deb_y[2] + 1 : deb_x[3] = deb_x[3] + 2 : deb_y[3] = deb_y[3] + 1
+
+   ; GAME OVER pulses red
+   temp_v = (frame / 8) & 7 : if temp_v > 3 then temp_v = 7 - temp_v
+   temp_v = temp_v * 2
+   P6C1 = $40 + temp_v : P6C2 = $44 + temp_v : P6C3 = $48 + temp_v
+
+   if es_t = 60 || es_t = 120 then gosub gameover_text
+
+   if switchreset then goto cold_start
+   if !joy0fire1 then es_ready = 1
+   if es_ready = 0 || !joy0fire1 then goto gameover_input_done
+   es_ready = 0
+   if es_t >= 120 then goto enter_hiscore
+   es_t = 119
+gameover_input_done
+
+   ; ---- draw ----
+   for iter = 0 to 5
+      temp_v = es_x[iter] : temp_w = es_y[iter]
+      plotsprite bullet_conv 4 temp_v temp_w
+   next
+   if es_t >= 48 then goto gameover_no_debris
+   for iter = 0 to 3
+      temp_v = deb_x[iter] : temp_w = deb_y[iter]
+      plotsprite bullet_conv 2 temp_v temp_w
+   next
+gameover_no_debris
+   plotsprite sprite_spaceship1 5 es_sx es_sy es_fr
+   if es_t >= 120 then if (frame & 32) > 0 then plotchars 'PRESS FIRE' 0 40 11
+   drawscreen
+   frame = frame + 1
+   goto gameover_loop
+
+gameover_stars
+   for iter = 0 to 5
+      temp_v = es_y[iter] + 1
+      if temp_v > 191 then temp_v = 0
+      es_y[iter] = temp_v
+   next
+   return
+
+gameover_fade
+   temp_v = P5C1 & 15 : if temp_v > 2 then P5C1 = P5C1 - 1
+   temp_v = P5C2 & 15 : if temp_v > 2 then P5C2 = P5C2 - 1
+   temp_v = P5C3 & 15 : if temp_v > 2 then P5C3 = P5C3 - 1
+   return
+
+gameover_text
+   clearscreen
+   plotvalue unified_font 0 score0 6 56 0
+   plotchars 'GAME OVER' 6 44 2
+   if es_t >= 120 then plotchars 'YOUR FATE AWAITS' 3 16 3
+   if es_t < 60 then goto gameover_text_done
+   ; how far you got
+   plotchars 'SECTOR' 1 28 9
+   plotvalue unified_font 1 current_level 1 92 9
+   plotchars 'OF 6' 1 108 9
+   ; the relics you'd won (one per sector cleared), centred
+   temp_v = current_level - 1
+   temp_bx = temp_v * 6 : temp_bx = 80 - temp_bx
+   if temp_v >= 1 then plotchars '*' 7 temp_bx 10
+   temp_bx = temp_bx + 12
+   if temp_v >= 2 then plotchars '+' 7 temp_bx 10
+   temp_bx = temp_bx + 12
+   if temp_v >= 3 then plotchars '-' 7 temp_bx 10
+   temp_bx = temp_bx + 12
+   if temp_v >= 4 then plotchars '/' 7 temp_bx 10
+   temp_bx = temp_bx + 12
+   if temp_v >= 5 then plotchars '<' 7 temp_bx 10
+gameover_text_done
+   savescreen
+   return
+
+   ; circle for the relics (radius 30 across, 24 down) and the ship's bob
+   data orbit_x
+   30, 28, 21, 11, 0, 245, 235, 228, 226, 228, 235, 245, 0, 11, 21, 28
+end
+   data orbit_y
+   0, 9, 17, 22, 24, 22, 17, 9, 0, 247, 239, 234, 232, 234, 239, 247
+end
+   data bob_table
+   0, 1, 2, 2, 3, 2, 2, 1, 0, 255, 254, 254, 253, 254, 254, 255
+end
+   data relic_spacing
+   0, 3, 6, 10, 13
+end
+
+   ; Game over: four falling tones
+   data sfx_gameover
+   16, 3, 14 ; version, priority, frames per chunk
+   $0F,$0C,$08
+   $12,$0C,$08
+   $15,$0C,$07
+   $1A,$0C,$07
+   $1A,$0C,$04
+   $1A,$0C,$02
+   $00,$00,$00
+end
+
+   asm
+; The five relic icons (* + - / <) as an 8x16 sprite: they are font
+; characters 46-50, side by side, so the frame number picks the relic.
+relic_gfx = unified_font + 92
+relic_gfx_width = 2
+relic_gfx_width_twoscompliment = $1E
+relic_gfx_mode = unified_font_mode
+end
+
+   ; ============================================
    ; POKEY music player (60Hz, from the top-of-screen interrupt)
    ; Data made by tools/vgm2music.py from the Furnace VGM exports.
    ; ============================================
@@ -3633,72 +3880,10 @@ set_level_config
    return
 
 you_win_game
-   ; Won all levels!
-   gosub StopMusic
-   clearscreen
-   BACKGRND=$00  ; Black (was Green)
-   
-   ; Celebratory Text
-   plotchars 'VICTORY' 7 52 2
-   plotchars 'THE GALAXY IS SAFE' 1 4 4
-   plotchars 'YOU ARE A HERO' 3 24 6
-   plotchars 'THANKS FOR PLAYING' 5 4 8
-   plotchars 'PRESS FIRE' 0 40 10
-   
-   plotvalue unified_font 0 score0 6 56 0
-
-   ; Flash celebration
-   drawscreen
-   ; Wait for button release first
-you_win_release
-   if joy0fire1 then goto you_win_release
-   
-   ; Now wait for new press
-   screen_timer = 60 ; 1s input delay
-   frame = 0
-you_win_wait
-   drawscreen ; one frame per pass, so the 1s input delay is real
-   frame = frame + 1
-   if switchreset then goto cold_start
-   if screen_timer > 0 then screen_timer = screen_timer - 1
-   if screen_timer > 0 then goto you_win_wait
-
-   if !joy0fire1 then goto you_win_wait
-   goto enter_hiscore
-
-
+   goto victory_screen
 
 you_lose
-   ; Game Over - no lives left
-   gosub StopMusic
-   clearscreen
-   BACKGRND=$00
-   
-   screen_timer = 60 ; 1s input delay
-   
-   ; plotchars 'DO NOT GIVE UP'   1 24 4
-   plotchars 'TRY AGAIN'        0 44 6
-   plotchars 'YOUR FATE AWAITS' 1 16 8
-   
-   plotvalue unified_font 0 score0 6 56 0
-   drawscreen
-   
-   ; Wait for button release
-you_lose_release
-   if joy0fire1 then goto you_lose_release
-   
-   ; Wait for button press with timeout
-you_lose_wait
-   drawscreen ; Sync to 60Hz
-   
-   frame = frame + 1
-   if switchreset then goto game_over_restore
-   
-   if screen_timer > 0 then screen_timer = screen_timer - 1
-   if screen_timer > 0 then goto you_lose_wait
-   
-   if !joy0fire1 then goto you_lose_wait
-   goto enter_hiscore
+   goto gameover_screen
 
 game_over_restore
    goto cold_start

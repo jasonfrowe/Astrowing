@@ -138,6 +138,28 @@ title_screen_conv01_width = $28
 title_screen_conv00_mode = $00
 title_screen_conv00_width_twoscompliment = $18
 title_screen_conv00_width = $28
+deb_y = $2674
+ 
+deb_x = $2670
+ 
+es_ready = $266D
+ 
+es_by = $266C
+ 
+es_fr = $266B
+ 
+es_sy = $266A
+ 
+es_sx = $2669
+ 
+es_t = $2668
+ 
+es_v = $2660
+ 
+es_y = $2658
+ 
+es_x = $2650
+ 
 game_difficulty = $2558
  
 py_hi = $2571

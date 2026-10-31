@@ -178,7 +178,11 @@ in the NMI and `mus_start` / `mus_stop`.
 | `$2642` / `$2647` | `mus_tclo` / `mus_tchi` | AUDC table |
 | `$264C-264D` | `mus_len`, `mus_reg` | Scratch |
 
-`$264E-$27FF` is free. 7800basic keeps the high score table in its own RAM
+Ending screens (`victory_screen`, `gameover_screen`) use `$2650-$2677`:
+star `es_x/es_y/es_v` [8], `es_t` time, ship `es_sx/es_sy/es_fr/es_by`,
+`es_ready`, debris `deb_x/deb_y` [4].
+
+`$2678-$27FF` is free. 7800basic keeps the high score table in its own RAM
 (`$2100` page).
 
 ---
