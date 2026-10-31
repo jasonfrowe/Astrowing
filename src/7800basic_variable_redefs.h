@@ -203,6 +203,10 @@ bul_x3 = var21
 bul_x2 = var20 
 bul_x1 = var19 
 bul_x0 = var18 
+hs_mute = $25D6
+ 
+attract_timer = $25D5
+ 
 cached_bossbar = $25D4
  
 arrow_f = $25D3

@@ -242,6 +242,8 @@
    dim arrow_y = $25D2
    dim arrow_f = $25D3    ; 0-3 = left/up/right/down, 255 = hidden
    dim cached_bossbar = $25D4 ; 1 while the boss bar is in the saved screen
+   dim attract_timer = $25D5  ; title time before the high score tables (2 frames a tick)
+   dim hs_mute = $25D6        ; 1 = cancel TIA sound effects (initials entry clicks)
 
 
    ; Aliases for plotsprite usage
@@ -278,6 +280,8 @@ reset_release_wait
 title_restart
    ; (after high score entry we come in here, so the title song keeps playing)
    screen_timer = 60 ; 1s input delay
+   attract_timer = 0
+   hs_mute = 0
    boss_state = 0 ; Reset boss state (prevents music logic from thinking boss is active)
    asteroid_timer = 0 ; Reset rotation timer
    boss_asteroid_cooldown = 0 ; Reset rotation timer
@@ -389,8 +393,8 @@ title_release_wait
    if asteroid_timer = 0 then boss_asteroid_cooldown = boss_asteroid_cooldown + 1 ; Hi Byte
    
    if boss_asteroid_cooldown >= 28 then gosub rotate_music
-   ; High score table every ~34s (256-frame ticks 7, 15, 23)
-   if asteroid_timer = 0 then temp_v = boss_asteroid_cooldown & 7 : if temp_v = 7 then goto title_attract
+   ; After ~8.5s of title, show the high score tables
+   if frame & 1 then attract_timer = attract_timer + 1 : if attract_timer = 0 then goto title_attract
 
     gosub PlayMusic ; Continue music playback (allows rotation to take effect)
 
@@ -422,10 +426,16 @@ set_palettes
    return
 
 title_attract
-   ; Show the high score table for the difficulty on the switch, then back
+   ; The table for the difficulty on the switch, then the other one (~6s
+   ; each), then the title again. Fire during a table goes straight back.
    if switchleftb then gamedifficulty = 0 else gamedifficulty = 1
    drawhiscores attract
+   if joy0fire1 then goto title_attract_done
+   gamedifficulty = gamedifficulty ^ 1
+   drawhiscores attract
+title_attract_done
    gosub set_palettes
+   attract_timer = 0
    goto title_loop
 
 enter_hiscore
@@ -435,7 +445,9 @@ enter_hiscore
    boss_state = 0 : current_level = 0
    gosub PlayMusic
    if game_difficulty = 1 then gamedifficulty = 0 else gamedifficulty = 1
+   hs_mute = 1 ; no letter clicks, just the music
    drawhiscores single
+   hs_mute = 0
    gosub set_palettes
    goto title_restart
 
@@ -3080,7 +3092,21 @@ spawn_boss_bullet
 topscreenroutine
    ; Called by 7800basic's NMI as the visible screen starts, every frame,
    ; so the music keeps time even if the game loop drops a frame.
+   ; It runs just before 7800basic services the TIA sound effects, so with
+   ; hs_mute set we cancel them here (the high score entry clicks).
    asm
+   lda hs_mute
+   beq ts_music
+   lda sfxschedulelock     ; mid-way through scheduling: leave it this frame
+   bne ts_music
+   lda #0
+   sta sfx1pointlo
+   sta sfx1pointhi
+   sta sfx1pointlo+1
+   sta sfx1pointhi+1
+   sta AUDV0
+   sta AUDV1
+ts_music
    jsr mus_tick
 end
    return

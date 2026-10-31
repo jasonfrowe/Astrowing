@@ -134,7 +134,9 @@ Variables manually allocated to the upper RAM block using `dim var = $Address`.
 | `$25D2` | `arrow_y` | Boss arrow Y | |
 | `$25D3` | `arrow_f` | Boss arrow frame | 0-3 left/up/right/down, 255 hidden |
 | `$25D4` | `cached_bossbar` | Boss bar in saved screen | |
-| `$25D5-25D7` | (Reserved) | | |
+| `$25D5` | `attract_timer` | Title time before the high score tables | |
+| `$25D6` | `hs_mute` | Cancel TIA effects | Set during initials entry |
+| `$25D7` | (Reserved) | | |
 | `$25D8-25D9` | `bfx` | Blue Fighter X (Low) | Array [2] |
 | `$25DA-25DB` | `bfy` | Blue Fighter Y (Low) | Array [2] |
 | `$25DC-25DD` | `bflife` | Blue Fighter Life | Array [2] |
