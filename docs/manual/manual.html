@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Astro Wing Manual</title>
+<!--
+  The game's manual, a 16-page pocket booklet in the style of the Atari
+  Gamma Force manual. tools/make_manual.py prints it to PDF at 5 x 7 and
+  4 x 6.5 inches (it rewrites the SIZE line and the @page rule for each).
+  Open it in a browser to read or edit; everything is sized from --base.
+-->
+<style>
+:root { /*SIZE*/ --page-w: 5in; --page-h: 7in; --base: 9pt; --pad: 0.38in 0.4in 0.42in; /*END*/
+  --ink: #15151a; --paper: #fffdf7; --muted: #55555e;
+  --navy: #0a0f26; --red: #d93a26; --orange: #f08a1c; --yellow: #f4cd2a; --blue: #2f6fd6; --pink: #c25cb5;
+}
+@page { size: 5in 7in; margin: 0; }
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: #777; }
+body { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: var(--base); line-height: 1.32; color: var(--ink); }
+.page { width: var(--page-w); height: var(--page-h); padding: var(--pad); background: var(--paper); position: relative; overflow: hidden;
+  page-break-after: always; break-after: page; margin: 0 auto; }
+@media screen { .page { margin: 0.3in auto; box-shadow: 0 2px 12px rgba(0,0,0,.4); } }
+.folio { position: absolute; bottom: 0.17in; left: 0; right: 0; text-align: center; font-family: Futura, "Avenir Next", sans-serif; font-size: 0.8em; color: var(--muted); letter-spacing: .1em; }
+
+h1, h2, h3 { font-family: Futura, "Avenir Next", "Helvetica Neue", sans-serif; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; margin: 0; }
+h2 { font-size: 1.55em; line-height: 1.1; margin-bottom: 0.15em; }
+h2 + .stripes { margin-bottom: 0.9em; }
+h3 { font-size: 1.05em; margin: 1em 0 0.3em; letter-spacing: .08em; }
+.stripes { height: 0.55em; display: grid; grid-template-rows: 1fr 1fr 1fr; gap: 0.12em; width: 100%; }
+.stripes i { display: block; } .stripes i:nth-child(1) { background: var(--red); } .stripes i:nth-child(2) { background: var(--orange); } .stripes i:nth-child(3) { background: var(--yellow); }
+p { margin: 0 0 0.6em; } ul { margin: 0 0 0.6em; padding-left: 1.2em; } li { margin-bottom: 0.25em; }
+b, strong { font-weight: 700; }
+.caps { font-family: Futura, "Avenir Next", sans-serif; text-transform: uppercase; letter-spacing: .06em; font-weight: 700; }
+.shot { display: block; width: 100%; image-rendering: pixelated; border: 0.06em solid #222; }
+.px { image-rendering: pixelated; }
+.cap { font-size: 0.82em; color: var(--muted); margin: 0.25em 0 0.7em; text-align: center; }
+.note { border-left: 0.3em solid var(--orange); padding: 0.35em 0.6em; background: #fbf1df; margin: 0.6em 0; }
+table { border-collapse: collapse; width: 100%; margin: 0.3em 0 0.7em; }
+td, th { padding: 0.22em 0.3em; vertical-align: middle; text-align: left; border-bottom: 0.06em solid #d8d3c6; }
+th { font-family: Futura, "Avenir Next", sans-serif; text-transform: uppercase; font-size: 0.82em; letter-spacing: .08em; color: var(--muted); }
+td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 0.7em; }
+
+/* the cover */
+.cover { background: var(--navy); color: #fff; padding: 0; }
+.cover .band { background: #000; color: #fff; font-family: Futura, "Avenir Next", sans-serif; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .2em; font-size: 0.95em; padding: 0.55em 0 0.45em; text-align: center; }
+.cover .band + .stripes { height: 0.7em; gap: 0; }
+.cover .logo { display: block; width: 78%; margin: 1.6em auto 0.8em; image-rendering: pixelated; }
+.cover .art { display: block; width: 100%; image-rendering: pixelated; }
+.cover .foot { position: absolute; bottom: 0; left: 0; right: 0; background: #000; text-align: center; padding: 0.55em 0 0.6em;
+  font-family: Futura, "Avenir Next", sans-serif; font-size: 0.85em; letter-spacing: .14em; text-transform: uppercase; }
+.cover .foot b { color: var(--yellow); }
+.cover .sub { text-align: center; font-family: Futura, "Avenir Next", sans-serif; letter-spacing: .3em; text-transform: uppercase; font-size: 0.9em; color: #cfd6ee; margin-bottom: 1em; }
+
+/* contents */
+.toc { list-style: none; padding: 0; margin: 0.4em 0 0; }
+.toc li { display: flex; align-items: baseline; margin-bottom: 0.45em; font-size: 1.05em; }
+.toc li span:first-child { font-family: Futura, "Avenir Next", sans-serif; text-transform: uppercase; letter-spacing: .06em; font-weight: 700; }
+.toc li .dots { flex: 1; border-bottom: 0.1em dotted #999; margin: 0 0.4em; transform: translateY(-0.25em); }
+
+/* controls */
+.keys { display: grid; grid-template-columns: 6.2em 1fr; gap: 0.55em 0.7em; align-items: start; margin: 0.6em 0; }
+.key { background: var(--ink); color: #fff; font-family: Futura, "Avenir Next", sans-serif; font-weight: 700; text-transform: uppercase;
+  font-size: 0.85em; letter-spacing: .05em; text-align: center; padding: 0.35em 0.2em; border-radius: 0.35em; }
+.key.b1 { background: var(--red); } .key.b2 { background: var(--blue); } .key.both { background: linear-gradient(90deg, var(--red) 50%, var(--blue) 50%); }
+
+/* the HUD */
+.hud { position: relative; margin: 0.4em 0 1.6em; }
+.hud img { width: 100%; display: block; image-rendering: pixelated; }
+.hud .tag { position: absolute; top: 100%; transform: translateX(-50%); margin-top: 0.15em; width: 1.35em; height: 1.35em; border-radius: 50%;
+  background: var(--orange); color: #000; font-family: Futura, "Avenir Next", sans-serif; font-weight: 700; font-size: 0.85em; text-align: center; line-height: 1.35em; }
+.legend { display: grid; grid-template-columns: 1.6em 1fr; gap: 0.3em 0.4em; }
+.legend .n { width: 1.35em; height: 1.35em; border-radius: 50%; background: var(--orange); font-family: Futura, "Avenir Next", sans-serif; font-weight: 700;
+  font-size: 0.85em; text-align: center; line-height: 1.35em; }
+
+/* enemies */
+.foe { display: grid; grid-template-columns: 5.6em 1fr; gap: 0.7em; align-items: center; padding: 0.6em 0; border-bottom: 0.06em solid #d8d3c6; }
+.foe:last-child { border-bottom: 0; }
+.foe .pic { background: var(--navy); border-radius: 0.3em; height: 4.1em; display: flex; align-items: center; justify-content: center; padding: 0.3em; }
+.foe .pic img { max-width: 100%; max-height: 100%; image-rendering: pixelated; }
+.foe h3 { margin: 0 0 0.15em; display: flex; justify-content: space-between; }
+.foe h3 .pts { color: var(--muted); font-weight: 400; letter-spacing: .02em; }
+.foe p { margin: 0; font-size: 0.95em; }
+
+/* stages */
+.stage { display: grid; grid-template-columns: 40% 1fr; gap: 0.7em; margin-bottom: 0.8em; }
+.stage .shots { display: grid; gap: 0.35em; }
+.stage h3 { margin-top: 0; }
+.stage h3 small { display: block; font-size: 0.75em; color: var(--muted); letter-spacing: .12em; }
+.stage p { font-size: 0.95em; }
+.boss { color: var(--red); }
+
+/* bullets row */
+.bullets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5em; margin: 0.5em 0 0.7em; text-align: center; }
+.bullets .pic { background: var(--navy); border-radius: 0.3em; height: 2.6em; display: flex; align-items: center; justify-content: center; }
+.bullets img { height: 1.7em; image-rendering: pixelated; }
+.bullets .t { font-size: 0.85em; margin-top: 0.2em; }
+
+/* back cover */
+.back { background: var(--navy); color: #e8ebf5; }
+.back h2 { color: #fff; }
+.back .grid4 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4em; margin: 0.6em 0 0.9em; }
+.back .grid4 img { width: 100%; image-rendering: pixelated; display: block; border: 0.06em solid #000; }
+.back p { color: #cfd6ee; }
+.back .small { font-size: 0.8em; color: #9aa6c8; }
+/* Astro Wing additions */
+.tagged { position: relative; margin: 0.3em 0 0.7em; }
+.tagged img { width: 100%; display: block; image-rendering: pixelated; border: 0.06em solid #222; }
+.tagged .tag { position: absolute; transform: translate(-50%, -50%); width: 1.35em; height: 1.35em; border-radius: 50%;
+  background: var(--orange); color: #000; font-family: Futura, "Avenir Next", sans-serif; font-weight: 700; font-size: 0.85em;
+  text-align: center; line-height: 1.35em; box-shadow: 0 0 0 0.12em #000; }
+.mini { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.4em; margin: 0.5em 0; text-align: center; }
+.mini .pic { background: var(--navy); border-radius: 0.3em; height: 3.2em; display: flex; align-items: center; justify-content: center; }
+.mini img { max-height: 2.3em; max-width: 80%; image-rendering: pixelated; }
+.mini .t { font-size: 0.82em; margin-top: 0.2em; }
+.relics { display: block; height: 1.6em; margin: 0.4em auto 0.6em; image-rendering: pixelated; }
+.cover .art { width: 100%; height: auto; image-rendering: auto; }
+.reward td:first-child { white-space: nowrap; }
+</style>
+</head>
+<body>
+
+<!-- 1. COVER -->
+<section class="page cover">
+  <div class="band">For the Atari 7800</div>
+  <div class="stripes"><i></i><i></i><i></i></div>
+  <img class="art" src="img/cover.jpg" alt="Astro Wing: Starfighter">
+  <div class="sub" style="margin-top:0.9em">A space shooter</div>
+  <div class="foot"><b>Game Manual</b> &nbsp;·&nbsp; 1 player &nbsp;·&nbsp; Joystick controller</div>
+</section>
+
+<!-- 2. CONTENTS -->
+<section class="page">
+  <h2>Contents</h2>
+  <div class="stripes"><i></i><i></i><i></i></div>
+  <ul class="toc">
+    <li><span>Mission Briefing</span><span class="dots"></span><span>3</span></li>
+    <li><span>Getting Started</span><span class="dots"></span><span>4</span></li>
+    <li><span>Using the Controls</span><span class="dots"></span><span>5</span></li>
+    <li><span>Flying the M-78</span><span class="dots"></span><span>6</span></li>
+    <li><span>The Screen</span><span class="dots"></span><span>7</span></li>
+    <li><span>Shields and Ships</span><span class="dots"></span><span>8</span></li>
+    <li><span>The Enemy</span><span class="dots"></span><span>9</span></li>
+    <li><span>The Guardians</span><span class="dots"></span><span>10</span></li>
+    <li><span>The Sectors</span><span class="dots"></span><span>11</span></li>
+    <li><span>Relics and Rewards</span><span class="dots"></span><span>13</span></li>
+    <li><span>Scoring and High Scores</span><span class="dots"></span><span>14</span></li>
+    <li><span>Commander's Tips</span><span class="dots"></span><span>15</span></li>
+  </ul>
+  <div class="note" style="margin-top:2em">
+    Read this booklet before you play, and keep it with your cartridge.
+    It tells you how to fly, how to fight, and how to bring the Relics home.
+  </div>
+  <div class="folio">2</div>
+</section>
+
+<!-- 3. MISSION BRIEFING -->
+<section class="page">
+  <h2>Mission Briefing</h2>
+  <div class="stripes"><i></i><i></i><i></i></div>
+  <p><b>Attention, Commander!</b></p>
+  <p>The galaxy is in peril. The <b>Evil Empire</b> has scattered the five
+  ancient <b>Relics of Power</b> across the cosmos. These artifacts are the
+  key to ultimate power, and if they remain in enemy hands, the universe is
+  doomed.</p>
+  <p>You are the pilot of the <b>M-78 Starfighter</b>, the most advanced
+  ship in the fleet. Your orders are simple: warp to each sector, break the
+  enemy blockade, defeat the <b>Guardian</b> that holds the sector's Relic,
+  and use each Relic to upgrade your ship for the final confrontation with
+  the Empire's <b>Flagship</b>.</p>
+  <img class="shot" src="img/play.png" alt="In battle">
+  <div class="cap">Deep in an enemy sector.</div>
+  <p>But be warned: the asteroid fields are treacherous, and the Empire's
+  Guardians are waiting.</p>
+  <div class="folio">3</div>
+</section>
+
+<!-- 4. GETTING STARTED -->
+<section class="page">
+  <h2>Getting Started</h2>
+  <div class="stripes"><i></i><i></i><i></i></div>
+  <ol style="padding-left:1.2em;margin:0 0 0.7em">
+    <li>With your Atari 7800 turned <b>off</b>, insert the Astro Wing
+    cartridge, label facing up.</li>
+    <li>Plug a joystick controller into the left controller jack.</li>
+    <li>Set the <b>left difficulty switch</b>: <b>A</b> for
+    <span class="caps">Pro</span>, <b>B</b> for <span class="caps">Easy</span>.</li>
+    <li>Turn the power on. The title screen appears.</li>
+  </ol>
+  <img class="shot" src="img/title.png" alt="The title screen">
+  <div class="cap">The title screen shows your last score and the difficulty.</div>
+  <p>Press the <b>button</b> (or <b>Reset</b>) to begin. Every so often the
+  title screen shows the high score tables; press the button to come back
+  to the title.</p>
+  <h3>Easy and Pro</h3>
+  <p>On <span class="caps">Easy</span> the enemy flies slower and fires less
+  often, the asteroids drift slower, your shots hit a little more easily,
+  and your shields are fully restored after every sector. Each difficulty
+  has its own high score table.</p>
+  <div class="folio">4</div>
+</section>
+
+<!-- 5. CONTROLS -->
+<section class="page">
+  <h2>Using the Controls</h2>
+  <div class="stripes"><i></i><i></i><i></i></div>
+  <p>Astro Wing is played with the joystick that came with your Atari 7800.
+  Only one button is used.</p>
+  <div class="keys">
+    <div class="key">Left / Right</div>
+    <div><b>Turn.</b> Your ship turns through sixteen headings. Hold the
+    stick to keep turning.</div>
+    <div class="key">Up</div>
+    <div><b>Thrust.</b> Fires your engine in the direction the ship is
+    pointing.</div>
+    <div class="key b1">Button</div>
+    <div><b>Photon blasters.</b> Fire in the direction you are pointing.
+    Hold the button for a steady stream of shots.</div>
+    <div class="key">Pause</div>
+    <div>Stops the game and the music. Press it again to carry on.</div>
+    <div class="key">Reset</div>
+    <div>Ends the game and returns to the title screen.</div>
+  </div>
+  <div class="note">At the start of every sector, and after you lose a ship,
+  the screen shows <span class="caps">Press fire to start</span>. Take a breath,
+  then press the button when you are ready.</div>
+  <div class="folio">5</div>
+</section>
+
+<!-- 6. FLYING -->
+<section class="page">
+  <h2>Flying the M-78</h2>
+  <div class="stripes"><i></i><i></i><i></i></div>
+  <img class="relics" src="img/sp_turns.png" alt="" style="height:2.2em">
+  <p>Space has no brakes. Your Starfighter flies by real <b>momentum</b>:
+  a burst of thrust keeps you moving until your drift slowly dies away, and
+  turning does not change the way you are moving, only the way you are
+  pointing.</p>
+  <ul>
+    <li>To slow down, turn to face the other way and thrust.</li>
+    <li>Short taps of thrust give you fine control. Holding the stick up
+    takes you to top speed.</li>
+    <li>You can fire in any direction while you drift in another.</li>
+  </ul>
+  <h3>Your place in space</h3>
+  <p>Your ship always stays in the middle of the screen, and the battle
+  moves around you. Each sector is a vast field of space that
+  <b>wraps around</b>: fly far enough in any direction and you will come
+  back to where you started.</p>
+  <p>Your blasters fire up to four shots at once. Each shot flies for about
+  a second.</p>
+  <div class="folio">6</div>
+</section>
+
+<!-- 7. THE SCREEN -->
+<section class="page">
+  <h2>The Screen</h2>
+  <div class="stripes"><i></i><i></i><i></i></div>
+  <div class="tagged">
+    <img src="img/hud.png" alt="The game screen">
+    <span class="tag" style="left:4%;top:12%">1</span>
+    <span class="tag" style="left:30%;top:12%">2</span>
+    <span class="tag" style="left:96%;top:12%">3</span>
+    <span class="tag" style="left:26%;top:79%">4</span>
+    <span class="tag" style="left:53%;top:93%">5</span>
+    <span class="tag" style="left:88%;top:93%">6</span>
+  </div>
+  <div class="legend">
+    <span class="n">1</span><div><b>Spare ships.</b> One heart for each ship
+    you have left after this one.</div>
+    <span class="n">2</span><div><b>Score.</b></div>
+    <span class="n">3</span><div><b>Enemies left.</b> How many more you must
+    destroy before the Guardian appears.</div>
+    <span class="n">4</span><div><b>The Guardian's health</b>, while you are
+    fighting one.</div>
+    <span class="n">5</span><div><b>Your shields.</b> The bar shrinks as you
+    take hits.</div>
+    <span class="n">6</span><div><b>Relics</b> you have recovered.</div>
+  </div>
+  <div class="folio">7</div>
+</section>
+
+<!-- 8. SHIELDS AND SHIPS -->
+<section class="page">
+  <h2>Shields and Ships</h2>
+  <div class="stripes"><i></i><i></i><i></i></div>
+  <p>Your shields start each ship at full strength. Every hit wears them
+  down:</p>
+  <table>
+    <tr><td>Enemy shot</td><td class="num">1</td></tr>
+    <tr><td>Ramming an enemy ship (it is destroyed)</td><td class="num">2</td></tr>
+    <tr><td>Hitting an asteroid (you are thrown clear)</td><td class="num">10</td></tr>
+    <tr><td>Hitting a Guardian (you are thrown clear)</td><td class="num">20</td></tr>
+  </table>
+  <p>When your shields run low, your ship <b>flashes</b>. When they run out,
+  the ship is lost. With a spare ship you carry on in the same sector,
+  shields full, and every enemy you destroyed still counts.</p>
+  <h3>Energy orbs</h3>
+  <div style="display:flex;gap:0.8em;align-items:center">
+    <div class="mini" style="grid-template-columns:4em;margin:0"><div class="pic"><img src="img/sp_orb.png" alt=""></div></div>
+    <p style="margin:0">Every fourth green Interceptor you destroy leaves
+    an <b>energy orb</b>. Fly into it for <b>10</b> points of shield. Be
+    quick: it fades after four seconds.</p>
+  </div>
+  <h3>Between sectors</h3>
+  <p>Clearing a sector restores half your shields
+  (<span class="caps">Pro</span>) or all of them (<span class="caps">Easy</span>).
+  You start the game with <b>3 ships</b>.</p>
+  <div class="folio">8</div>
+</section>
+
+<!-- 9. THE ENEMY -->
+<section class="page">
+  <h2>The Enemy</h2>
+  <div class="stripes"><i></i><i></i><i></i></div>
+  <div class="foe"><div class="pic"><img src="img/sp_fighter.png" alt=""></div>
+    <div><h3>Fighter <span class="pts">100</span></h3><p>Hunts you in a loose
+    squadron, circling around you and firing whenever it has a line on you.
+    Faster and quicker to fire in later sectors.</p></div></div>
+  <div class="foe"><div class="pic"><img src="img/sp_blue.png" alt=""></div>
+    <div><h3>Interceptor <span class="pts">250</span></h3><p>Sweeps across the
+    sector in a long weaving run and fires on the diagonal. Every fourth one
+    you destroy leaves an energy orb.</p></div></div>
+  <div class="foe"><div class="pic"><img src="img/sp_asteroid.png" alt=""></div>
+    <div><h3>Asteroid</h3><p><b>Indestructible.</b> It soaks up shots from
+    both sides, and crushes any enemy ship in its path (that counts as a kill
+    for you). Asteroids drift faster from Sector 3.</p></div></div>
+  <div class="foe"><div class="pic"><img src="img/sp_ebullet.png" alt="" style="height:22%;margin:0 0.25em"><img src="img/sp_ebullet.png" alt="" style="height:22%;margin:0 0.25em"><img src="img/sp_ebullet.png" alt="" style="height:22%;margin:0 0.25em"></div>
+    <div><h3>Enemy fire</h3><p>Fighter and Guardian shots fly in eight
+    directions, aimed at where you are. Keep moving.</p></div></div>
+  <div class="note">The enemy never stops coming. Fighters and Interceptors
+  keep arriving even while you battle a Guardian, so clear a little space
+  before you close in.</div>
+  <div class="folio">9</div>
+</section>
+
+<!-- 10. THE GUARDIANS -->
+<section class="page">
+  <h2>The Guardians</h2>
+  <div class="stripes"><i></i><i></i><i></i></div>
+  <p>Destroy enough enemies to bring the counter to <b>00</b> and the
+  sector's <b>Guardian</b> warps in somewhere in the sector. Its health bar
+  appears at the bottom of the screen.</p>
+  <img class="shot" src="img/arrow.png" alt="The arrow points to the Guardian">
+  <div class="cap">The arrow at the edge of the screen points the shortest
+  way to the Guardian.</div>
+  <ul>
+    <li>Guardians fire at you, and from Sector 2 they launch fighters too.</li>
+    <li>Get too close and a Guardian backs away.</li>
+    <li>Hurt it to <b>three quarters</b>, <b>half</b> and <b>a quarter</b> of its
+    health and it <b>warps</b> to a new place. Follow the arrow.</li>
+    <li>An asteroid that hits a Guardian makes it warp away too.</li>
+    <li>Once a Guardian is down to half health, losing a ship won't undo your
+    work: it comes back with half its health.</li>
+  </ul>
+  <div class="folio">10</div>
+</section>
+
+<!-- 11. SECTORS 1-3 -->
+<section class="page">
+  <h2>The Sectors</h2>
+  <div class="stripes"><i></i><i></i><i></i></div>
+  <div class="stage">
+    <div class="shots"><img class="shot" src="img/boss1.png" alt=""></div>
+    <div><h3><small>Sector 1</small>The Blockade</h3>
+    <p>Destroy <b>20</b> enemies. The enemy is slow here: a good place to
+    learn to fly.</p>
+    <p class="boss"><b>Guardian:</b> a lone sentry that fires slowly. 17 hits.</p></div>
+  </div>
+  <div class="stage">
+    <div class="shots"><img class="shot" src="img/boss2.png" alt=""></div>
+    <div><h3><small>Sector 2</small>The Picket Line</h3>
+    <p>Destroy <b>40</b> enemies. They fly and fire faster.</p>
+    <p class="boss"><b>Guardian:</b> a wider warship that launches fighters.
+    20 hits.</p></div>
+  </div>
+  <div class="stage">
+    <div class="shots"><img class="shot" src="img/boss3.png" alt=""></div>
+    <div><h3><small>Sector 3</small>The Asteroid Belt</h3>
+    <p>Destroy <b>60</b> enemies. The asteroids come at twice the speed.</p>
+    <p class="boss"><b>Guardian:</b> fires rapidly. 25 hits.</p></div>
+  </div>
+  <div class="folio">11</div>
+</section>
+
+<!-- 12. SECTORS 4-6 -->
+<section class="page">
+  <h2>The Sectors</h2>
+  <div class="stripes"><i></i><i></i><i></i></div>
+  <div class="stage">
+    <div class="shots"><img class="shot" src="img/boss4.png" alt=""></div>
+    <div><h3><small>Sector 4</small>The Gauntlet</h3>
+    <p>Destroy <b>80</b> enemies, now at full speed.</p>
+    <p class="boss"><b>Guardian:</b> a twin-hulled warship. 34 hits.</p></div>
+  </div>
+  <div class="stage">
+    <div class="shots"><img class="shot" src="img/boss5.png" alt=""></div>
+    <div><h3><small>Sector 5</small>The Inner Ring</h3>
+    <p>Destroy <b>99</b> enemies, the fiercest yet.</p>
+    <p class="boss"><b>Guardian:</b> the Flagship's escort, as big as the
+    Flagship itself. 50 hits.</p></div>
+  </div>
+  <div class="stage">
+    <div class="shots"><img class="shot" src="img/boss6.png" alt=""></div>
+    <div><h3><small>Sector 6</small>The Flagship</h3>
+    <p>No counter here: the Empire's <b>Flagship</b> is waiting from the
+    start.</p>
+    <p class="boss"><b>The Flagship</b> hurls asteroids at you and launches
+    fighters. 100 hits. Bring every upgrade.</p></div>
+  </div>
+  <div class="folio">12</div>
+</section>
+
+<!-- 13. RELICS AND REWARDS -->
+<section class="page">
+  <h2>Relics and Rewards</h2>
+  <div class="stripes"><i></i><i></i><i></i></div>
+  <img class="relics" src="img/sp_relics.png" alt="The five Relics">
+  <p>Each Guardian you defeat surrenders a <b>Relic of Power</b>, and the
+  Relic upgrades your ship:</p>
+  <table class="reward">
+    <tr><th>Sector</th><th>Reward</th></tr>
+    <tr><td>1</td><td><b>Increased firepower:</b> your blasters fire faster.</td></tr>
+    <tr><td>2</td><td><b>Increased speed:</b> a higher top speed.</td></tr>
+    <tr><td>3</td><td><b>Max health up:</b> shields fully restored.</td></tr>
+    <tr><td>4</td><td><b>Faster recharge:</b> faster still.</td></tr>
+    <tr><td>5</td><td><b>Extra life:</b> one more ship.</td></tr>
+  </table>
+  <img class="shot" src="img/reward.png" alt="A reward" style="width:72%;margin:0 auto">
+  <div class="cap">Sector 1 cleared.</div>
+  <p>Defeat the Flagship in Sector 6 and the galaxy is saved.</p>
+  <div class="folio">13</div>
+</section>
+
+<!-- 14. SCORING AND HIGH SCORES -->
+<section class="page">
+  <h2>Scoring</h2>
+  <div class="stripes"><i></i><i></i><i></i></div>
+  <table>
+    <tr><td>Fighter</td><td class="num">100</td></tr>
+    <tr><td>Interceptor (shot down / rammed)</td><td class="num">250 / 100</td></tr>
+    <tr><td>Enemy crushed by an asteroid</td><td class="num">50</td></tr>
+    <tr><td>Each hit on a Guardian</td><td class="num">10</td></tr>
+    <tr><td>Guardian or Flagship destroyed</td><td class="num">5,000</td></tr>
+  </table>
+  <h3>High scores</h3>
+  <div class="two">
+    <div><img class="shot" src="img/hiscore.png" alt="The high score table"></div>
+    <div><p style="font-size:0.95em">At the end of a game, a score in the top five
+    goes on the table: push the joystick <b>up or down</b> to choose each
+    letter, and press the <b>button</b> for the next.</p></div>
+  </div>
+  <p style="margin-top:0.6em">With a <b>High Score Cartridge</b>,
+  <b>SaveKey</b> or <b>AtariVox</b> attached, your scores are saved.</p>
+  <table>
+    <tr><th>Score</th><th>Rank</th></tr>
+    <tr><td>100,000</td><td class="caps">Ace</td></tr>
+    <tr><td>50,000</td><td class="caps">Commander</td></tr>
+    <tr><td>25,000</td><td class="caps">Captain</td></tr>
+    <tr><td>10,000</td><td class="caps">Pilot</td></tr>
+    <tr><td>below 10,000</td><td class="caps">Cadet</td></tr>
+  </table>
+  <div class="folio">14</div>
+</section>
+
+<!-- 15. TIPS -->
+<section class="page">
+  <h2>Commander's Tips</h2>
+  <div class="stripes"><i></i><i></i><i></i></div>
+  <ul>
+    <li><b>Master momentum.</b> You drifted? You died. Tap thrust gently
+    to correct your course, and turn around to brake.</li>
+    <li><b>Don't sit still.</b> Enemy fire is aimed at where you are. A
+    slow, steady drift makes you much harder to hit.</li>
+    <li><b>Let the rocks work for you.</b> Lure fighters across an
+    asteroid's path. Every ship it crushes counts toward the sector.</li>
+    <li><b>Use the rocks as cover.</b> An asteroid stops enemy shots
+    as well as yours.</li>
+    <li><b>Hunt the Interceptors.</b> They are worth 250, and every
+    fourth one leaves an energy orb.</li>
+    <li><b>Follow the arrow.</b> A Guardian that warps away is never far.
+    Thrust after it before its fighters pile up.</li>
+    <li><b>Keep your distance.</b> Ramming a Guardian costs 20 shields.
+    Stand off and shoot.</li>
+    <li><b>New to space?</b> Set the left difficulty switch to <b>B</b> for
+    <span class="caps">Easy</span>.</li>
+  </ul>
+  <p style="text-align:center;margin-top:1.2em"><i>Good luck, Starfighter.
+  The galaxy is counting on you.</i></p>
+  <div class="folio">15</div>
+</section>
+
+<!-- 16. BACK COVER -->
+<section class="page back">
+  <h2>Astro Wing: Starfighter</h2>
+  <div class="stripes"><i></i><i></i><i></i></div>
+  <div class="grid4">
+    <img src="img/boss2.png" alt=""><img src="img/boss4.png" alt="">
+    <img src="img/boss6.png" alt=""><img src="img/victory.png" alt="">
+  </div>
+  <p>Six sectors. Five Relics of Power. One Starfighter against the Empire.</p>
+  <p>Turn, thrust and drift through wrap-around space in a shooter with
+  real momentum, and bring the Relics home.</p>
+  <p class="small">Astro Wing: Starfighter © 2026 Jason Rowe. Developed with
+  7800basic.<br>
+  Atari and Atari 7800 are trademarks of their owners. This is an
+  independent game, not made or endorsed by Atari.</p>
+</section>
+
+</body>
+</html>

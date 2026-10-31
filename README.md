@@ -15,6 +15,13 @@ You are the pilot of the **M-78 Starfighter**, the most advanced ship in the fle
 
 But be warned: The **asteroid fields** are treacherous, and the **Empire's Guardians** are waiting.
 
+### 📖 Manual
+A 16-page manual in the style of the old Atari booklets, ready to print and
+fold: [5 x 7 inches](docs/manual/Astro_Wing_Manual_5x7.pdf) or
+[4 x 6.5 inches](docs/manual/Astro_Wing_Manual_4x6.5.pdf). Its text is
+`docs/manual/manual.html`; `tools/make_manual.py` prints it (`--shots` takes
+its screenshots again, in the emulator).
+
 ### 📸 Title Screen Preview
 ![Astrowing Title Screen](./docs/Astrowing_screenshot.png)
 
