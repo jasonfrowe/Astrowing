@@ -52,7 +52,7 @@ function(add_7800basic_target TARGET_NAME SOURCE_FILE)
         COMMAND ${CMAKE_COMMAND} -E copy ${SOURCE_FILENAME}.a78 ${OUTPUT_A78}
         COMMAND ${CMAKE_COMMAND} -E copy ${SOURCE_FILENAME}.bin ${OUTPUT_BIN}
         WORKING_DIRECTORY ${SOURCE_WORK_DIR}
-        DEPENDS ${SOURCE_FULL_PATH}
+        DEPENDS ${SOURCE_FULL_PATH} ${ARGN}
         COMMENT "Compiling 7800basic: ${SOURCE_FILE}"
         VERBATIM
     )
@@ -72,9 +72,28 @@ endfunction()
 # Add main game target
 # (Removed - Legacy moved to archive)
 
-# Add astrowing target
+# Music: Furnace VGM exports -> compact player data (tools/vgm2music.py).
+# Song order matters: the game plays song N by its position in this list.
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+set(MUSIC_VGM
+    ${CMAKE_SOURCE_DIR}/src/music/Song_01.vgm
+    ${CMAKE_SOURCE_DIR}/src/music/Song_02.vgm
+    ${CMAKE_SOURCE_DIR}/src/music/Song_03.vgm
+    ${CMAKE_SOURCE_DIR}/src/music/Boss.vgm
+)
+set(MUSIC_ASM ${CMAKE_SOURCE_DIR}/src/music/music_data.asm)
+add_custom_command(
+    OUTPUT ${MUSIC_ASM}
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/vgm2music.py ${MUSIC_VGM} -o ${MUSIC_ASM}
+    DEPENDS ${MUSIC_VGM} ${CMAKE_SOURCE_DIR}/tools/vgm2music.py
+    COMMENT "Converting music"
+    VERBATIM
+)
+
+# Add astrowing target (rebuilt when the source, music or graphics change)
 if(EXISTS ${CMAKE_SOURCE_DIR}/src/astrowing.bas)
-    add_7800basic_target(astrowing src/astrowing.bas)
+    file(GLOB GAME_GRAPHICS ${CMAKE_SOURCE_DIR}/src/graphics/*.png)
+    add_7800basic_target(astrowing src/astrowing.bas ${MUSIC_ASM} ${GAME_GRAPHICS})
 endif()
 
 

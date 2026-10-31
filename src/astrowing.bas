@@ -2,7 +2,14 @@
    
    set 7800header 'name Astro Wing Starfighter'
 
-   ; set hssupport $4157
+   ; High score table (High Score Cart / AtariVox-SaveKey). $4157 = 'AW'.
+   ; Reserve the number in the AtariAge thread before release:
+   ; https://atariage.com/forums/topic/128432-high-score-cart-values/
+   set hssupport $4157
+   set hsgamename 'astro wing'
+   set hsdifficultytext 'easy' 'pro' 'easy' 'pro'
+   set hsscoresize 6
+   set hsgameranks 100000 'ace' 50000 'commander' 25000 'captain' 10000 'pilot' 0 'cadet'
    set zoneheight 16
 
    displaymode 160A
@@ -10,6 +17,25 @@
    set pokeysupport $450
  
    ; Import graphics
+   ; Block 0 ($C000): title banner (240 bytes a line) + small sprites (14)
+   incbanner graphics/title_screen_conv.png 160A 0 1 2 3
+   incgraphic graphics/bullet_conv.png
+   incgraphic graphics/fighter.png
+   incgraphic graphics/blue_fighter.png
+   incgraphic graphics/Energy.png
+   ; Explosion Frames (Split for animation)
+   incgraphic graphics/fighter_explode_00_conv.png
+   incgraphic graphics/fighter_explode_01_conv.png
+   incgraphic graphics/fighter_explode_02_conv.png
+   incgraphic graphics/fighter_explode_03_conv.png
+   incgraphic graphics/fighter_explode_04_conv.png
+   incgraphic graphics/fighter_explode_05_conv.png
+   incgraphic graphics/fighter_explode_06_conv.png
+   incgraphic graphics/fighter_explode_07_conv.png
+
+   ; Block 1 ($E000): the high score font must be the first graphic in its block
+   newblock
+   incgraphic graphics/hiscorefont.png 320A
    incgraphic graphics/sprite_spaceship1.png
    incgraphic graphics/sprite_spaceship2.png
    incgraphic graphics/sprite_spaceship3.png
@@ -26,21 +52,6 @@
    incgraphic graphics/sprite_spaceship14.png
    incgraphic graphics/sprite_spaceship15.png
    incgraphic graphics/sprite_spaceship16.png
-   
-   incgraphic graphics/bullet_conv.png
-   incgraphic graphics/fighter.png
-   incgraphic graphics/blue_fighter.png
-   incgraphic graphics/Energy.png
-   ; Explosion Frames (Split for animation)
-   incgraphic graphics/fighter_explode_00_conv.png
-   incgraphic graphics/fighter_explode_01_conv.png
-   incgraphic graphics/fighter_explode_02_conv.png
-   incgraphic graphics/fighter_explode_03_conv.png
-   incgraphic graphics/fighter_explode_04_conv.png
-   incgraphic graphics/fighter_explode_05_conv.png
-   incgraphic graphics/fighter_explode_06_conv.png
-   incgraphic graphics/fighter_explode_07_conv.png
-   incbanner graphics/title_screen_conv.png 160A 0 1 2 3
 
    incgraphic graphics/arrows_01.png 160A
    incgraphic graphics/arrows_02.png 160A
@@ -48,7 +59,6 @@
    incgraphic graphics/arrows_04.png 160A
    
    incgraphic graphics/asteroid_M_conv.png
-   ; incgraphic graphics/Boss_conv.png
    incgraphic graphics/BossV2_01.png
    incgraphic graphics/BossV2_02.png
    incgraphic graphics/BossV2_03.png
@@ -145,7 +155,7 @@
    ; Safety Buffer 76-79
       ; Starfield Variables (4 stars used)
    ; Moved to var80+ to prevent memory corruption from scratch vars
-   dim star_x = var80 ; 80-83 (Array [4]) - No conflict with music_zp at var98
+   dim star_x = var80 ; 80-83 (Array [4]) 
    dim star_y = $2500 ; 2500-2519
    dim star_c = $2520 ; 2520-2539
    dim sc1 = $2544
@@ -170,16 +180,11 @@
    dim acc_mx = var78
    dim acc_my = var79
 
-   ; Music State (Safe Zone per MEMORY_MAP)
-   dim music_active = $25AC ; 0=Stopped, 1=Playing
-   dim music_ptr_lo = $25AA
-   dim music_ptr_hi = $25AB
-   dim current_song = $25AF ; 1=Song_01, 2=Song_02 (Moved from 25AD conflict)
+   ; Music State (the player's own state is on the $2600 page)
+   dim music_ptr_hi = $25AB ; 0 = PlayMusic picks and starts a song, 1 = playing
+   dim current_song = $25AF ; 1=Song_01, 2=Song_02, 3=Song_03, 4=Boss
    
    
-   ; ASM Driver uses dedicated ZP vars stolen from star array (unused slots)
-   dim music_zp_lo = var98
-   dim music_zp_hi = var99
    
    dim rand_val = $254C
    dim screen_timer = $254D ; Generic timeout timer
@@ -268,9 +273,11 @@ cold_start
 reset_release_wait
    if switchreset then goto reset_release_wait
    
+   gosub StopMusic ; Ensure music state is clean (also sets music_ptr_hi = 0)
+
+title_restart
+   ; (after high score entry we come in here, so the title song keeps playing)
    screen_timer = 60 ; 1s input delay
-   music_active = 0 ; Ensure music state is clean
-   music_ptr_hi = 0 ; Reset music pointer
    boss_state = 0 ; Reset boss state (prevents music logic from thinking boss is active)
    asteroid_timer = 0 ; Reset rotation timer
    boss_asteroid_cooldown = 0 ; Reset rotation timer
@@ -278,17 +285,7 @@ reset_release_wait
     if current_song = 0 then current_song = 1 ; Default to song 1 on first boot only
 
 
-   ; Palette Setup
-   P0C1=$26: P0C2=$24: P0C3=$04 ; Background/UI
-   P1C1=$C2: P1C2=$C6: P1C3=$CA ; Player Bullets (Green)
-   P2C1=$04: P2C2=$08: P2C3=$0C ; Asteroids (Greys)
-   P3C1=$B4: P3C2=$46: P3C3=$1C ; Enemy (Green, Red, Yellow)
-   P4C1=$08: P4C2=$0C: P4C3=$0F ; Stars
-   P5C1=$34: P5C2=$86: P5C3=$0A ; Spaceship
-   P6C1=$42: P6C2=$46: P6C3=$4A ; Enemy Bullets (Red)
-   P7C1=$C8: P7C2=$46: P7C3=$1C ; Title Screen (Vibrant)
-
-   BACKGRND=$00
+   gosub set_palettes
    
    ; Initialize difficulty settings (will be overridden by set_level_config)
    enemy_move_mask = 1        ; Default: slow movement
@@ -353,7 +350,7 @@ title_release_wait
     characterset unified_font
     plotchars 'VERSION' 1 12 11
     plotchars '*+-/<' 7 60 1
-    plotchars '20260126' 1 84 11
+    plotchars '20261030' 1 84 11
     
     ; Difficulty Display
     plotchars 'DIFFICULTY' 1 20 9
@@ -392,6 +389,8 @@ title_release_wait
    if asteroid_timer = 0 then boss_asteroid_cooldown = boss_asteroid_cooldown + 1 ; Hi Byte
    
    if boss_asteroid_cooldown >= 28 then gosub rotate_music
+   ; High score table every ~34s (256-frame ticks 7, 15, 23)
+   if asteroid_timer = 0 then temp_v = boss_asteroid_cooldown & 7 : if temp_v = 7 then goto title_attract
 
     gosub PlayMusic ; Continue music playback (allows rotation to take effect)
 
@@ -408,6 +407,37 @@ title_no_reset
 restore_pal_game
    P7C1=$C8: P7C2=$46: P7C3=$1C
    goto init_game
+
+set_palettes
+   ; (also needed after drawhiscores, which changes the palettes)
+   P0C1=$26: P0C2=$24: P0C3=$04 ; Background/UI
+   P1C1=$C2: P1C2=$C6: P1C3=$CA ; Player Bullets (Green)
+   P2C1=$04: P2C2=$08: P2C3=$0C ; Asteroids (Greys)
+   P3C1=$B4: P3C2=$46: P3C3=$1C ; Enemy (Green, Red, Yellow)
+   P4C1=$08: P4C2=$0C: P4C3=$0F ; Stars
+   P5C1=$34: P5C2=$86: P5C3=$0A ; Spaceship
+   P6C1=$42: P6C2=$46: P6C3=$4A ; Enemy Bullets (Red)
+   P7C1=$C8: P7C2=$46: P7C3=$1C ; Title Screen (Vibrant)
+   BACKGRND=$00
+   return
+
+title_attract
+   ; Show the high score table for the difficulty on the switch, then back
+   if switchleftb then gamedifficulty = 0 else gamedifficulty = 1
+   drawhiscores attract
+   gosub set_palettes
+   goto title_loop
+
+enter_hiscore
+   ; Game over or won: initials entry if the score made the table, to the
+   ; title song (which carries on into the title screen)
+   gosub StopMusic
+   boss_state = 0 : current_level = 0
+   gosub PlayMusic
+   if game_difficulty = 1 then gamedifficulty = 0 else gamedifficulty = 1
+   drawhiscores single
+   gosub set_palettes
+   goto title_restart
 
 rotate_music
    boss_asteroid_cooldown = 0
@@ -1359,15 +1389,16 @@ skip_enemy_coll
          if bf_on[temp_acc] = 0 then goto skip_bul_bf
          if bflife[temp_acc] <> 1 then goto skip_bul_bf
          
+         ; Centre to centre: bullet dot (+2,+2), blue fighter (+4,+4)
+         temp_w = 18 : if game_difficulty = 1 then temp_w = 19
          temp_v = bul_x[iter] - bfx_scr[temp_acc]
-         temp_v = temp_v - 6 ; Center Offset
+         temp_v = temp_v - 2
          if temp_v >= 128 then temp_v = 0 - temp_v
-         temp_w = 18 : if game_difficulty = 1 then temp_w = 19
          if temp_v >= temp_w then goto skip_bul_bf
-         
+
          temp_v = bul_y[iter] - bfy_scr[temp_acc]
-         temp_v = temp_v - 6
-         temp_w = 18 : if game_difficulty = 1 then temp_w = 19
+         temp_v = temp_v - 2
+         if temp_v >= 128 then temp_v = 0 - temp_v
          if temp_v >= temp_w then goto skip_bul_bf
          
          ; Hit!
@@ -2560,13 +2591,20 @@ ci_absx
    adc #1
 ci_absy
    sta temp6
-   ; boss centre within 48 px across and 64 px down of the centre: no arrow
-   lda temp5
-   cmp #24
-   bcs ci_show
-   lda temp6
-   cmp #32
-   bcc ci_done
+   ; at least 8 px of the boss on screen both ways: no arrow
+   ; (|dx| < 80 + half width - 8 and |dy| < 96 + half height - 8, in half px)
+   lda temp1
+   lsr
+   adc #36
+   cmp temp5
+   bcc ci_show
+   beq ci_show
+   lda temp2
+   lsr
+   adc #44
+   cmp temp6
+   beq ci_show
+   bcs ci_done
 ci_show
    ; past the side edges by more than past top/bottom (|dx|-80 >= |dy|-96)?
    lda temp5
@@ -3034,21 +3072,262 @@ spawn_boss_bullet
    playsfx sfx_enemyfire 0
    return
 
-   ; Music Data (raw POKEY register streams, 30Hz)
-   ; Song_01: Title/Levels 2,5
-   ; Song_02: Levels 1,3,4
+   ; ============================================
+   ; POKEY music player (60Hz, from the top-of-screen interrupt)
+   ; Data made by tools/vgm2music.py from the Furnace VGM exports.
+   ; ============================================
+
+topscreenroutine
+   ; Called by 7800basic's NMI as the visible screen starts, every frame,
+   ; so the music keeps time even if the game loop drops a frame.
    asm
-Song_01_Data:
-   incbin "music/Song_01_30hz.bin"
-   
-Song_02_Data:
-   incbin "music/Song_02_30hz.bin"
+   jsr mus_tick
+end
+   return
 
-Song_03_Data:
-   incbin "music/Song_03_30hz.bin"
+StopMusic
+   asm
+   jsr mus_stop
+end
+   music_ptr_hi = 0 ; pick a song again on the next PlayMusic
+   return
 
-Song_Boss_Data:
-   incbin "music/Boss_30hz.bin"
+PlayMusic
+   ; Start the right song if none is chosen yet (music_ptr_hi = 0)
+   if music_ptr_hi <> 0 then return
+   music_ptr_hi = 1
+   if boss_state > 0 && boss_state < 5 then current_song = 4 : goto play_selected
+   if current_level = 0 then goto play_title_song
+   ; Level songs: 1,4 -> Song_02; 2,5 -> Song_01; 3 -> Song_03; 6 -> Boss
+   current_song = 1
+   if current_level = 1 || current_level = 4 then current_song = 2
+   if current_level = 3 then current_song = 3
+   if current_level = 6 then current_song = 4
+   goto play_selected
+play_title_song
+   ; Title rotates through songs 1-3
+   if current_song = 0 || current_song > 3 then current_song = 1
+play_selected
+   temp_v = current_song - 1
+   asm
+   lda temp_v
+   jsr mus_start
+end
+   return
+
+   asm
+; RAM ($2600 page is otherwise unused). Zero page $C0-$C5 is 7800basic's
+; tracker block, which this game doesn't use.
+musp        = $C0      ; 2: stream pointer
+must        = $C2      ; 2: AUDF (or AUDCTL) table pointer
+mutc        = $C4      ; 2: AUDC table pointer
+mus_on      = $2600
+mus_ptrlo   = $2601    ; [5] per voice: ch1-4, AUDCTL
+mus_ptrhi   = $2606
+mus_wait    = $260B    ; frames still to hold
+mus_cur     = $2610    ; current state (table index)
+mus_retlo   = $2615    ; where to carry on after a $C0 phrase
+mus_rethi   = $261A
+mus_endlo   = $261F    ; address just past the phrase
+mus_endhi   = $2624
+mus_incall  = $2629
+mus_stlo    = $262E    ; voice start, for looping
+mus_sthi    = $2633
+mus_tflo    = $2638
+mus_tfhi    = $263D
+mus_tclo    = $2642
+mus_tchi    = $2647
+mus_len     = $264C    ; scratch
+mus_reg     = $264D    ; scratch
+
+; mus_start: A = song number (0-3). Called from the game, not the NMI.
+mus_start
+    sta mus_reg
+    lda #0
+    sta mus_on              ; keeps mus_tick (and its zero page) out
+    lda mus_reg             ; header = mus_songs + song * 30
+    asl
+    sta mus_len
+    asl
+    asl
+    asl
+    asl
+    sec
+    sbc mus_len
+    clc
+    adc #<mus_songs
+    sta musp
+    lda #>mus_songs
+    adc #0
+    sta musp+1
+    ldy #0
+    ldx #0
+ms_voice
+    lda (musp),y
+    sta mus_stlo,x
+    sta mus_ptrlo,x
+    iny
+    lda (musp),y
+    sta mus_sthi,x
+    sta mus_ptrhi,x
+    iny
+    lda (musp),y
+    sta mus_tflo,x
+    iny
+    lda (musp),y
+    sta mus_tfhi,x
+    iny
+    lda (musp),y
+    sta mus_tclo,x
+    iny
+    lda (musp),y
+    sta mus_tchi,x
+    iny
+    lda #0
+    sta mus_wait,x
+    sta mus_incall,x
+    inx
+    cpx #5
+    bne ms_voice
+    lda #1
+    sta mus_on
+    rts
+
+mus_stop
+    lda #0
+    sta mus_on
+    sta $0451               ; AUDC1-4 silent
+    sta $0453
+    sta $0455
+    sta $0457
+    sta $0458               ; AUDCTL
+    rts
+
+; mus_tick: one frame of every voice. Runs in the NMI: uses only its own
+; zero page and RAM. Nothing while paused (7800basic silences POKEY then).
+mus_tick
+    lda pausestate
+    bne mt_rts
+    lda mus_on
+    bne mt_go
+mt_rts
+    rts
+mt_go
+    ldx #4
+mt_voice
+    lda mus_wait,x
+    beq mt_read
+    dec mus_wait,x
+    jmp mt_apply
+mt_read
+    lda mus_ptrlo,x
+    sta musp
+    lda mus_ptrhi,x
+    sta musp+1
+mt_cmd
+    lda mus_incall,x        ; end of a $C0 phrase: back to the caller
+    beq mt_fetch
+    lda musp
+    cmp mus_endlo,x
+    bne mt_fetch
+    lda musp+1
+    cmp mus_endhi,x
+    bne mt_fetch
+    lda mus_retlo,x
+    sta musp
+    lda mus_rethi,x
+    sta musp+1
+    lda #0
+    sta mus_incall,x
+mt_fetch
+    ldy #0
+    lda (musp),y
+    bpl mt_state            ; $00-$7F state
+    cmp #$C0
+    bcc mt_hold             ; $80-$BF hold
+    beq mt_call             ; $C0 phrase
+    lda mus_stlo,x          ; $FF: start the voice over
+    sta musp
+    lda mus_sthi,x
+    sta musp+1
+    jmp mt_cmd
+mt_call
+    ldy #3
+    lda (musp),y
+    sta mus_len
+    lda musp
+    clc
+    adc #4
+    sta mus_retlo,x
+    lda musp+1
+    adc #0
+    sta mus_rethi,x
+    ldy #1
+    lda (musp),y
+    pha
+    iny
+    lda (musp),y
+    sta musp+1
+    pla
+    sta musp
+    clc
+    adc mus_len
+    sta mus_endlo,x
+    lda musp+1
+    adc #0
+    sta mus_endhi,x
+    lda #1
+    sta mus_incall,x
+    jmp mt_cmd
+mt_state
+    sta mus_cur,x
+    jmp mt_advance
+mt_hold
+    and #$3F
+    sta mus_wait,x
+mt_advance
+    inc musp
+    bne mt_store
+    inc musp+1
+mt_store
+    lda musp
+    sta mus_ptrlo,x
+    lda musp+1
+    sta mus_ptrhi,x
+mt_apply                    ; write this voice's current state every frame
+    lda mus_tflo,x
+    sta must
+    lda mus_tfhi,x
+    sta must+1
+    lda mus_tclo,x
+    sta mutc
+    lda mus_tchi,x
+    sta mutc+1
+    txa
+    asl
+    sta mus_reg
+    ldy mus_cur,x
+    lda (mutc),y
+    pha
+    lda (must),y
+    ldy mus_reg
+    cpx #4
+    beq mt_audctl
+    sta $0450,y             ; AUDFn
+    pla
+    sta $0451,y             ; AUDCn
+    jmp mt_next
+mt_audctl
+    sta $0458               ; AUDCTL
+    pla
+mt_next
+    dex
+    bmi mt_done
+    jmp mt_voice
+mt_done
+    rts
+
+   include "music/music_data.asm"
 end
 
    ; ---- Everything below lives in the DMA hole at $D000 (4KB) ----
@@ -3127,7 +3406,9 @@ level_next_restore
 lose_life
    ; Shields depleted - lose a life
    player_lives = player_lives - 1
-   
+   gosub update_bars       ; the killing hit empties the shield bar
+   gosub refresh_static_ui ; hearts show the lives left during the explosion
+
    ; Stop Music
    gosub StopMusic
    
@@ -3357,7 +3638,7 @@ you_win_wait
    if screen_timer > 0 then goto you_win_wait
 
    if !joy0fire1 then goto you_win_wait
-   goto cold_start
+   goto enter_hiscore
 
 
 
@@ -3391,177 +3672,10 @@ you_lose_wait
    if screen_timer > 0 then goto you_lose_wait
    
    if !joy0fire1 then goto you_lose_wait
-   
-   if !joy0fire1 then goto you_lose_wait
+   goto enter_hiscore
 
 game_over_restore
    goto cold_start
-
-   ; ============================================
-   ; POKEY VGM Register Stream Driver (ASM)
-   ; ============================================
-
-StopMusic
-   asm
-   lda #0
-   sta $0451 ; AUDC1
-   sta $0453 ; AUDC2
-   sta $0455 ; AUDC3
-   sta $0457 ; AUDC4
-end
-   return
-
-PlayMusic
-   if !(frame & 1) then return
-   asm
-   ; Check if initialized (high byte != 0)
-   lda music_ptr_hi
-    bne .SetupPtr
-    
-    ; Check for Active Boss (State 1-4)
-    lda boss_state
-    cmp #5
-    bcs .CheckLevel ; If State >= 5 (Defeated), ignore boss music
-    cmp #1
-    bcc .CheckLevel ; If State < 1 (Inactive), ignore boss music
-    jmp .UseBoss    ; Else play Boss Music
-
-.CheckLevel:
-    ; Initialize pointer based on current_level and current_song (for rotation)
-    lda current_level
-    bne .NotTitle
-    
-    ; Title Screen (Level 0) - Support Rotation
-    lda current_song
-    cmp #3
-    beq .UseSong3
-    cmp #2
-    beq .UseSong2
-    jmp .UseSong1
-
-.NotTitle:
-    cmp #6
-    beq .UseBoss
-    cmp #3
-    beq .UseSong3
-    cmp #1
-    beq .UseSong2
-    cmp #4
-    beq .UseSong2
-   
-   ; Use Song_01 (Title, Level 2, Level 5)
-.UseSong1:
-   lda #1
-   sta current_song     ; Track which song is playing
-   lda #<Song_01_Data
-   sta music_ptr_lo
-   lda #>Song_01_Data
-   sta music_ptr_hi
-   jmp .SetupPtr
-
-.UseBoss:
-   lda #4
-   sta current_song
-   lda #<Song_Boss_Data
-   sta music_ptr_lo
-   lda #>Song_Boss_Data
-   sta music_ptr_hi
-   jmp .SetupPtr
-
-.UseSong3:
-   lda #3
-   sta current_song
-   lda #<Song_03_Data
-   sta music_ptr_lo
-   lda #>Song_03_Data
-   sta music_ptr_hi
-   jmp .SetupPtr
-   
-.UseSong2:
-   lda #2
-   sta current_song     ; Track which song is playing
-   lda #<Song_02_Data
-   sta music_ptr_lo
-   lda #>Song_02_Data
-   sta music_ptr_hi
-
-.SetupPtr:
-   ; Copy persistent pointer to ZP for indirect access
-   lda music_ptr_lo
-   sta $E2 ; music_zp_lo (var98)
-   lda music_ptr_hi
-   sta $E3 ; music_zp_hi (var99)
-
-   ; Process Frame
-   ldy #0
-.Loop:
-   lda ($E2),y
-   cmp #$FF       ; End of Frame?
-   beq .EndFrame
-   cmp #$FE       ; End of Song?
-   beq .EndSong
-   
-   ; It is a Register Address
-   tax            ; X = Register
-   iny
-   lda ($E2),y  ; A = Value
-   sta $0450,x    ; Write to POKEY
-   iny
-   cpy #64        ; Safety: Prevent infinite processing (Max 64 bytes/frame)
-   bcs .EndFrame  ; Force exit if too many bytes
-   bne .Loop      ; Continue if not 0
-
-.EndFrame:
-   ; Advance pointer past the 0xFF
-   iny
-   tya
-   clc
-   adc music_ptr_lo
-   sta music_ptr_lo
-   lda music_ptr_hi
-   adc #0
-   sta music_ptr_hi
-   rts
-
-.EndSong:
-   ; Reset pointer based on current_song variable
-   lda current_song
-   cmp #4
-   beq .LoopBoss
-   cmp #3
-   beq .LoopSong3
-   cmp #2
-   beq .LoopSong2
-   
-.LoopSong1:
-   lda #<Song_01_Data
-   sta music_ptr_lo
-   lda #>Song_01_Data
-   sta music_ptr_hi
-   rts
-
-.LoopSong3:
-   lda #<Song_03_Data
-   sta music_ptr_lo
-   lda #>Song_03_Data
-   sta music_ptr_hi
-   rts
-   
-.LoopSong2:
-   lda #<Song_02_Data
-   sta music_ptr_lo
-   lda #>Song_02_Data
-   sta music_ptr_hi
-   rts
-
-.LoopBoss:
-   lda #<Song_Boss_Data
-   sta music_ptr_lo
-   lda #>Song_Boss_Data
-   sta music_ptr_hi
-   rts
-end
-
 
 spawn_blue_fighter
    ; Find free Blue Fighter slot
