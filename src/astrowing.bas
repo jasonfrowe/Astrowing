@@ -229,7 +229,16 @@
    dim bf_kill_count = $25F9
    dim energy_timer = $25FA ; 4-second timeout timer
 
-   
+   ; HUD bars: RAM text plotted once into the saved screen, so changing
+   ; these bytes updates the bars with no re-plotting (see update_bars)
+   dim shield_bar = $25BD ; 10 chars
+   dim boss_bar = $25C7   ; 10 chars (must follow shield_bar)
+   dim arrow_x = $25D1    ; boss indicator, worked out in calc_boss_indicator
+   dim arrow_y = $25D2
+   dim arrow_f = $25D3    ; 0-3 = left/up/right/down, 255 = hidden
+   dim cached_bossbar = $25D4 ; 1 while the boss bar is in the saved screen
+
+
    ; Aliases for plotsprite usage
    dim bul_x0 = var18 : dim bul_x1 = var19 : dim bul_x2 = var20 : dim bul_x3 = var21
    dim bul_y0 = var22 : dim bul_y1 = var23 : dim bul_y2 = var24 : dim bul_y3 = var25
@@ -372,7 +381,7 @@ title_release_wait
     temp_v = (temp_v * 16) + 12
     P7C3 = temp_v
 
-    if joy0fire1 then goto restore_pal_story
+    if joy0fire1 then goto restore_pal_game
     
     ; Music Rotation Timer (2 Minutes)
    ; Use frame counter to tick seconds
@@ -396,14 +405,8 @@ title_no_reset
     
     goto title_loop
 
-restore_pal_story
-   P7C1=$C8: P7C2=$46: P7C3=$1C
-   goto init_game
-
 restore_pal_game
    P7C1=$C8: P7C2=$46: P7C3=$1C
-   goto init_game
-
    goto init_game
 
 rotate_music
@@ -464,8 +467,6 @@ init_game
     
     score0 = 0
     ; Initialize boss (Level 6)
-    if current_level = 6 then gosub init_boss
-    if current_level = 6 then fighters_remaining = 99 : fighters_bcd = converttobcd(99)
     
     ; Initialize prize system (all active)
     prize_active0 = 1
@@ -519,9 +520,8 @@ init_game
    gosub init_stars
    
    ; Initial UI draw (force first render)
-   gosub draw_lives
-   gosub draw_treasures
-   savescreen  ; Save static UI elements
+   gosub update_bars
+   gosub refresh_static_ui
    
    ready_flag = 2
 
@@ -537,8 +537,7 @@ main_loop
    frame = frame + 1
 
    ; ---- Level Start Button Wait ----
-   if ready_flag > 0 then plotchars 'PRESS FIRE' 5 40 8 : plotchars 'TO START' 5 48 9
-   
+   ; (PRESS FIRE is plotted with the rest of the frame: plotting waits for vblank)
    if ready_flag = 2 then if !joy0fire1 then ready_flag = 1
    if ready_flag = 1 then if joy0fire1 then ready_flag = 0
    if ready_flag > 0 then goto skip_enemy_updates
@@ -667,39 +666,30 @@ skip_enemy_updates
 
    gosub update_render_coords
    gosub update_bf_render_coords
+   gosub calc_boss_indicator
 
-    ; ---- Draw ----
-    ; Draw Scores
-    ; Player (Left) - Green (Pal 3)
-    ; ---- Lives Display (Top Left) ----
-    ; Using Palette 3 (Green)
-    ; ---- Lives Display (Top Left) ----
-    ; Using Palette 5 (Red) per user request
-    ; Unrolled Loop for 3 Hearts (Fast)
-    ; UI Draw Section - All using unified_font
-    ; characterset unified_font
+    ; ---- Work that doesn't plot (runs while the screen is drawn) ----
+    ; 7800basic only lets us plot during vblank (~8000 cycles), so keep
+    ; everything that isn't a plot above the first plot of the frame.
+    gosub PlayMusic
 
-    ; ---- UI Rendering (Optimized) ----
-    
-    ; Creates optimized UI
-    
-    ; Lives Display (only update when changed)
+    ; HUD bars are RAM text in the saved screen: just rewrite their bytes
+    if player_shield <> cached_shield then gosub update_bars
+    if boss_hp <> cached_boss_hp then gosub update_bars
+
+    ; Rebuild the saved screen only when lives, level or the boss bar change
+    temp_v = 0 : if boss_state > 0 && boss_state < 5 then temp_v = 1
+    if temp_v <> cached_bossbar then gosub refresh_static_ui
     if player_lives <> cached_lives then gosub refresh_static_ui
-    
-    ; Treasures Display (only update when level changes)
     if current_level <> cached_level then gosub refresh_static_ui
-    
-    ; Boss Health Display
-    if boss_state > 0 && boss_state <= 4 then if boss_hp <> cached_boss_hp then gosub refresh_static_ui
-    if boss_state = 0 then goto main_skip_boss_ui
-    if boss_state > 4 then goto main_skip_boss_ui
-    
-main_skip_boss_ui
-    ; Dynamic values (update every frame)
-    ; Shield (Left, Green, Palette 3)
-    ; Shield (Left, Green, Palette 3)
-    ; Now handled by refresh_static_ui with progress bar
-    if player_shield <> cached_shield then gosub refresh_static_ui
+
+    ; ---- Low Health Warning (Palette Swap) ----
+    if player_shield >= 20 then P5C2=$86 : goto skip_health_warn
+    if (frame & 32) > 0 then P5C2=$34 else P5C2=$86
+skip_health_warn
+
+    ; ---- Draw (vblank) ----
+    if ready_flag > 0 then plotchars 'PRESS FIRE' 5 40 8 : plotchars 'TO START' 5 48 9
     ; Score (Center, Palette 5)
     plotvalue unified_font 0 score0 6 56 0
     
@@ -719,20 +709,8 @@ main_skip_boss_ui
 
      if alife > 0 then gosub draw_asteroid
      if boss_on = 1 then gosub draw_boss
-     gosub draw_boss_indicator
+     if arrow_f < 4 then plotsprite arrows_01 6 arrow_x arrow_y arrow_f
      gosub draw_enemy_bullets
-     
-     ; Update Music
-     gosub PlayMusic
-  
-     ; ---- Low Health Warning (Palette Swap) ----
-     ; P5C1 ($34), P5C2 ($86) and P5C3 ($0A) 
-     if player_shield >= 20 then P5C2=$86 : goto skip_health_warn
-     
-     ; Flash every 30 frames (0.5s)
-     if (frame & 32) > 0 then P5C2=$34 else P5C2=$86
-     
-skip_health_warn
 
      drawscreen
     goto main_loop
@@ -853,8 +831,6 @@ spawn_bullet
    ; Use sin_table values directly (Max 6px/frame)
    ; Previous logic divided by 2 (Max 3px/frame) which was slower than player.
    
-   temp_v = sin_table[angle]
-   if temp_v >= 128 then temp_v = 0 - temp_v : temp_v = 0 - temp_v ; Keep sign? No, bul_vx expects 0-255 format.
    ; Wait, 7800Basic doesn't handle negative assignment well in one line?
    ; Let's respect the table format.
    
@@ -1681,7 +1657,6 @@ skip_ebul_coll
 
    ; Only check if boss is active
    if boss_state = 0 then goto coll_done
-   if boss_state = 0 then goto coll_done
    if boss_on = 0 then goto coll_done
    
    ; Define Dynamic Hitbox based on Level
@@ -1808,10 +1783,11 @@ coll_done
 
 boss_defeated
    ; Boss destroyed - trigger level complete
-   
+   gosub update_bars ; empty the boss bar before the explosion freezes the HUD
+
    ; Play Explosion Sound
    gosub StopMusic
-   playsfx 1
+   playsfx sfx_explode
    
    ; Boss Explosion Animation (8 frames)
    boss_on = 0 ; Hide the actual boss sprite immediately
@@ -2014,12 +1990,6 @@ a_y_done
     ; Both Visible!
     a_on = 1
     goto boss_coords_check
-
-
-   
-   ; Just use primitive following for now.
-   ; screen_y = py - cam_y (approx)
-   goto boss_coords_check
 
 ; --- Boss (Level 6) ---
 boss_coords_check
@@ -2299,110 +2269,70 @@ draw_treasures
    return
 
 refresh_static_ui
+    ; Rebuild the saved screen: hearts, treasures, the bars (RAM text).
+    ; Only needed when lives, level or the boss bar's presence change.
     clearscreen
-    
-    ; 1. Draw Lives (Standard Scoredigits)
-    ; 1. Draw Lives (Standard Scoredigits)
     gosub draw_lives
     gosub draw_treasures
-    
-    ; 2. Draw Boss Health (Alphabet)
-    ; 2. Draw Boss Health (Alphabet)
-    if boss_state = 0 then goto skip_boss_ui
-    if boss_state > 4 then goto skip_boss_ui
-        
-    ; Draw BOSS label
-    plotchars 'BOSS' 5 64 10
-    
-    ; Draw Dollars based on HP
-    ; Draw Dollar Bar (Using Graph Logic)
-    ; Scale: (val * 8) / 10 = val - (val/5)
-    temp_v = boss_hp / 5
-    temp_v = boss_hp - temp_v
-    
-    temp_bx = 40
-    temp_by = 10
-    temp_w = 2
-    gosub draw_bar_graph
 
-skip_boss_ui
-    ; 3. Draw Player Shield (Unified Font Bar)
-    ; Shield 0-100. Max width 80px (10 blocks)
-    ; Scaling: (shield * 8) / 10 = shield * 4/5
-    ; Better approximation to avoid overflow: shield - (shield / 5)
-    temp_v = player_shield / 5
-    temp_v = player_shield - temp_v
-    
-    ; temp_bx = 20 ; Center it slightly? Or Left? 
-    ; User said "bottom left". Left margin 0 or 8?
-    ; Version text was at 20. Collisions?
-    ; Let's put it at 10 to give some padding. Or 0?
-    temp_bx = 0
-    temp_by = 11
-    temp_w = 3 ; Palette 3 (Green)
-    ; But low health swaps Palette 5 (Spacehsip). Bar uses Pal 3?
-    ; Let's switch bar to Palette 5 to match effect if implied?
-    ; No, user said "linked player palette to shield bar" in Step 370 request context but code used P5. Bar uses P3 (Green).
-    ; Bar should arguably use P5 if "Linked".
-    temp_w = 5
-    gosub draw_bar_graph
-    ; 3. Restore Scoredigits (Safety)
-    ; 3. Restore Scoredigits (Safety)
-    ; (No longer needed with unified font)
-    
-    ; Update all caches since we just redrew everything
-    cached_lives = player_lives
-    cached_level = current_level
-    cached_boss_hp = boss_hp
-    cached_shield = player_shield
-    
+    cached_bossbar = 0
+    if boss_state > 0 && boss_state < 5 then cached_bossbar = 1 : plotchars 'BOSS' 5 64 10 : plotchars boss_bar 2 40 10 10
+    plotchars shield_bar 5 0 11 10
+
     savescreen
     return
 
-draw_bar_graph
-    ; Input: temp_v (pixels), temp_bx (x), temp_by (y), temp_w (pal)
-    ; Uses: iter, temp_acc, temp_v
-    
-    ; if temp_v = 0 then return ; removed to allow drawing empty bars
-    
-    ; Full blocks
-    temp_acc = temp_v / 8
-    
-    if temp_acc = 0 then goto draw_bar_remainder
-    
-    ; Loop full blocks
-    for iter = 1 to temp_acc
-        plotchars '$' temp_w temp_bx temp_by
-        temp_bx = temp_bx + 8
-    next
-    
-    if temp_acc >= 10 then return
-    
-draw_bar_remainder
-    ; Remainder
-    temp_v = temp_v & 7
-    ; Explicit Literal Map
-    if temp_v = 0 then plotchars ':' temp_w temp_bx temp_by
-    if temp_v = 1 then plotchars '(' temp_w temp_bx temp_by
-    if temp_v = 2 then plotchars ')' temp_w temp_bx temp_by
-    if temp_v = 3 then plotchars '.' temp_w temp_bx temp_by
-    if temp_v = 4 then plotchars ',' temp_w temp_bx temp_by
-    if temp_v = 5 then plotchars '!' temp_w temp_bx temp_by
-    if temp_v = 6 then plotchars '?' temp_w temp_bx temp_by
-    if temp_v = 7 then plotchars '"' temp_w temp_bx temp_by
-    
-    ; Setup for filling empty spots
-    ; Increment x to next block for loop
-    temp_bx = temp_bx + 8
-    temp_acc = temp_acc + 1
-    
-    ; Loop until we reach 10 blocks
-fill_remainder_loop
-    if temp_acc >= 10 then return
-    plotchars ':' temp_w temp_bx temp_by
-    temp_bx = temp_bx + 8
-    temp_acc = temp_acc + 1
-    goto fill_remainder_loop
+update_bars
+    ; Rewrite the bar characters from shield and boss HP (0-100 -> 0-80 px)
+    temp_v = player_shield / 5 : temp_v = player_shield - temp_v
+    asm
+    lda temp_v
+    ldx #0
+    jsr fill_bar
+end
+    temp_v = boss_hp / 5 : temp_v = boss_hp - temp_v
+    asm
+    lda temp_v
+    ldx #10
+    jsr fill_bar
+end
+    cached_shield = player_shield
+    cached_boss_hp = boss_hp
+    return
+
+    asm
+; A = pixels (0-80), X = 0 (shield_bar) or 10 (boss_bar). 10 chars, 8 px each.
+fill_bar
+    sta temp1
+    txa
+    clc
+    adc #10
+    sta temp2
+fill_bar_loop
+    lda temp1
+    cmp #8
+    bcc fill_bar_part
+    lda #8
+fill_bar_part
+    tay
+    sty temp3
+    lda temp1
+    sec
+    sbc temp3
+    sta temp1
+    lda bar_chars,y
+    sta shield_bar,x
+    inx
+    cpx temp2
+    bne fill_bar_loop
+    rts
+; characters for 0-8 lit pixels  : ( ) . , ! ? " $
+bar_chars
+    .byte <(unified_font+90), <(unified_font+86), <(unified_font+88)
+    .byte <(unified_font+74), <(unified_font+80), <(unified_font+76)
+    .byte <(unified_font+78), <(unified_font+82), <(unified_font+84)
+end
+
 
 
    ; ---- Data Tables (ROM) ----
@@ -2439,6 +2369,20 @@ end
    $0A,$08,$08 ; descending pitch
    $0C,$08,$06 ; fade out
    $0E,$08,$04
+   $00,$00,$00
+end
+
+   ; Explosion - noise falling in pitch and fading (player death, boss death)
+   data sfx_explode
+   16, 2, 6 ; version, priority, frames per chunk
+   $06,$08,$0F
+   $0A,$08,$0E
+   $0E,$08,$0C
+   $12,$08,$0A
+   $16,$08,$08
+   $1A,$08,$06
+   $1E,$08,$04
+   $1F,$08,$02
    $00,$00,$00
 end
 
@@ -2534,90 +2478,159 @@ draw_boss_composite
    
    return
 
-draw_boss_indicator
-   if boss_state = 0 then return
-   
-   ; Hysteresis Logic: Show arrow if Boss is Off-Screen or Near Edge
-   ; Safe Zone: Center Screen with Margin
-   ; Screen 160x192. Boss 32x64.
-   ; Center X: 80. Boss Center: boss_scr_x + 16.
-   ; Center Y: 96. Boss Center: boss_scr_y + 32.
-   
-   temp_v = 1 ; Default Show
-   
-   if boss_on = 0 then goto show_arrow_check_done
-   
-   ; Check if "Safely Inside" Safe Zone
-   ; Center X: 80. Boss Center: boss_scr_x + 16.
-   temp_acc = boss_scr_x + 16
-   if temp_acc > 80 then temp_w = temp_acc - 80 else temp_w = 80 - temp_acc
-   
-   ; Margin 48 (Safe Zone width 96px centered, X range 32..128)
-   ; If outside margin (>= 48), Show.
-   if temp_w >= 48 then goto show_arrow_check_done
-   
-   ; Check Y
-   ; Center Y: 96. Boss Center: boss_scr_y + 32.
-   temp_acc = boss_scr_y + 32
-   if temp_acc > 96 then temp_w = temp_acc - 96 else temp_w = 96 - temp_acc
-   
-   ; Margin 64 (Safe Zone height 128px centered, Y range 32..160)
-   if temp_w >= 64 then goto show_arrow_check_done
-   
-   return ; Safely Inside -> Hide Arrow
-
-show_arrow_check_done
-   ; Determine Zone (hi_x, hi_y)
-   if boss_x_hi = 0 then goto zone_0_or_2
-   if boss_y_hi = 0 then goto zone_1
-   
-   ; --- Zone 3 (1,1) ---
-   if boss_x > 160 then if boss_y < 192 then goto z3_right
-   if boss_x < 160 then if boss_y > 192 then goto z3_bottom
-   ; Bottom corner
-   temp_acc = 3 : temp_v = 150 : temp_w = 180 : goto hud_plot_switch
-
-z3_right
-   temp_acc = 2 : temp_v = 150 : temp_w = boss_y : goto z_clamp_y
-z3_bottom
-   temp_acc = 3 : temp_v = boss_x : temp_w = 180 : goto z_clamp_x
-
-zone_1 ; (1,0) Above us?
-   if boss_y > 128 then goto z1_top
-   ; z1_bottom
-   temp_acc = 3 : temp_v = boss_x : temp_w = 180 : goto z_clamp_x
-z1_top
-   temp_acc = 1 : temp_v = boss_x : temp_w = 4 : goto z_clamp_x
-
-zone_0_or_2
-   if boss_y_hi = 1 then goto zone_2
-   
-   ; --- Zone 0 (0,0) Top Left ---
-   temp_acc = 1 : temp_v = 4 : temp_w = 4 : goto hud_plot_switch
-
-zone_2 ; (0,1) Left of us?
-   if boss_x > 128 then goto z2_left
-   ; z2_right
-   temp_acc = 2 : temp_v = 150 : temp_w = boss_y : goto z_clamp_y
-z2_left
-   temp_acc = 0 : temp_v = 4 : temp_w = boss_y : goto z_clamp_y
-
-z_clamp_x
-   if temp_v < 4 then temp_v = 4
-   if temp_v > 150 then temp_v = 150
-   goto hud_plot_switch
-
-z_clamp_y
-   if temp_w < 4 then temp_w = 4
-   if temp_w > 180 then temp_w = 180
-   goto hud_plot_switch
-
-hud_plot_switch
-   if temp_acc = 0 then plotsprite arrows_01 6 temp_v temp_w
-   if temp_acc = 1 then plotsprite arrows_02 6 temp_v temp_w
-   if temp_acc = 2 then plotsprite arrows_03 6 temp_v temp_w
-   if temp_acc = 3 then plotsprite arrows_04 6 temp_v temp_w
-   return
+calc_boss_indicator
+   ; Arrow pointing the short way (the world wraps at 512) from the screen
+   ; centre to the boss's centre. Worked out in half pixels so a 9-bit
+   ; signed distance fits a byte. Hidden while the boss is well on screen.
+   asm
+   lda #255
+   sta arrow_f
+   lda boss_state
+   beq ci_off
+   cmp #5
+   bcc ci_on
+ci_off
+   rts
+ci_on
+   ; boss half width: 8 on levels 1 and 3, else 16; half height: 16 from level 5
+   ldx #16
+   ldy #8
+   lda current_level
+   cmp #5
+   bcc ci_short
+   ldy #16
+ci_short
+   cmp #1
+   beq ci_narrow
+   cmp #3
+   bne ci_wide
+ci_narrow
+   ldx #8
+ci_wide
+   stx temp1
+   sty temp2
+   ; dx/2 = ((boss_x_hi:boss_x) + half width - (1:80)) >> 1, bit 8 as sign
+   lda boss_x
+   clc
+   adc temp1
+   tax
+   lda boss_x_hi
+   adc #0
+   tay
+   txa
+   sec
+   sbc #80
+   tax
+   tya
+   sbc #1
+   lsr
+   txa
+   ror
+   sta temp3
+   ; dy/2, the same from (1:96)
+   lda boss_y
+   clc
+   adc temp2
+   tax
+   lda boss_y_hi
+   adc #0
+   tay
+   txa
+   sec
+   sbc #96
+   tax
+   tya
+   sbc #1
+   lsr
+   txa
+   ror
+   sta temp4
+   ; |dx/2| -> temp5, |dy/2| -> temp6
+   lda temp3
+   bpl ci_absx
+   eor #255
+   clc
+   adc #1
+ci_absx
+   sta temp5
+   lda temp4
+   bpl ci_absy
+   eor #255
+   clc
+   adc #1
+ci_absy
+   sta temp6
+   ; boss centre within 48 px across and 64 px down of the centre: no arrow
+   lda temp5
+   cmp #24
+   bcs ci_show
+   lda temp6
+   cmp #32
+   bcc ci_done
+ci_show
+   ; past the side edges by more than past top/bottom (|dx|-80 >= |dy|-96)?
+   lda temp5
+   clc
+   adc #8
+   cmp temp6
+   bcc ci_vertical
+   ; left (frame 0) at x 4 or right (frame 2) at x 150
+   ldx #0
+   lda #4
+   bit temp3
+   bmi ci_hset
+   ldx #2
+   lda #150
+ci_hset
+   stx arrow_f
+   sta arrow_x
+   ; y = 92 + 2 * clamp(dy/2, -44..44) -> 4..180
+   lda temp4
+   bmi ci_yneg
+   cmp #44
+   bcc ci_yok
+   lda #44
+   bne ci_yok
+ci_yneg
+   cmp #212
+   bcs ci_yok
+   lda #212
+ci_yok
+   asl
+   clc
+   adc #92
+   sta arrow_y
+   rts
+ci_vertical
+   ; up (frame 1) at y 4 or down (frame 3) at y 180
+   ldx #1
+   lda #4
+   bit temp4
+   bmi ci_vset
+   ldx #3
+   lda #180
+ci_vset
+   stx arrow_f
+   sta arrow_y
+   ; x = 76 + 2 * clamp(dx/2, -36..37) -> 4..150
+   lda temp3
+   bmi ci_xneg
+   cmp #37
+   bcc ci_xok
+   lda #37
+   bne ci_xok
+ci_xneg
+   cmp #220
+   bcs ci_xok
+   lda #220
+ci_xok
+   asl
+   clc
+   adc #76
+   sta arrow_x
+ci_done
+   rts
+end
 
 init_boss
    ; Initialize Boss for Level 6
@@ -2714,54 +2727,16 @@ skip_fighter_spawn_check
    ; --- Boss Movement Logic ---
    if boss_on = 0 then bvx = 0 : bvy = 0 : return
 
-   ; 1. Base Oscillation (Default State)
-   ; Determine closest edge to find oscillation axis
-   temp_v = boss_scr_y ; Min Y dist (Top)
-   if boss_scr_y > 192 then temp_v = 0 - boss_scr_y
-   
-   temp_w = 192 - boss_scr_y ; Bottom
-   if boss_scr_y > 192 then temp_w = 0
-   if temp_w < temp_v then temp_v = temp_w ; temp_v is Min Y Dist
-   
-   temp_w = boss_scr_x ; Min X dist (Left)
-   if boss_scr_x > 160 then temp_w = 0 - boss_scr_x
-   
-   var90 = 160 - boss_scr_x ; Right
-   if boss_scr_x > 160 then var90 = 0
-   if var90 < temp_w then temp_w = var90 ; temp_w is Min X Dist
-   
-   ; Progressive Speed Calculation (Shared)
+   ; 1. Base Oscillation: back and forth, faster on later levels
    ; L1-2: Speed 2. L3-4: Speed 3. L5-6: Speed 4.
-   var90 = 2
-   if current_level >= 3 then var90 = 3
-   if current_level >= 5 then var90 = 4
+   temp_v = 2
+   if current_level >= 3 then temp_v = 3
+   if current_level >= 5 then temp_v = 4
 
-   ; Determine closest edge to find oscillation axis
-   temp_v = boss_scr_y ; Min Y dist (Top)
-
-boss_osc_horizontal
    bvy = 0
    boss_move_phase = boss_move_phase + 1
    if boss_move_phase >= 120 then boss_move_phase = 0
-   if boss_move_phase >= 120 then boss_move_phase = 0
-   ; Progressive Speed (Horizontal)
-   temp_v = var90
-   if boss_move_phase < 60 then bvx = temp_v 
-   if boss_move_phase >= 60 then bvx = 0 - temp_v
-   goto boss_apply_constraints
-   
-   ; Legacy logic replaced above
-   ; if boss_move_phase < 60 then bvx = 3 else bvx = 253
-   goto boss_apply_constraints
-
-boss_osc_vertical
-   bvx = 0
-   boss_move_phase = boss_move_phase + 1
-   if boss_move_phase >= 120 then boss_move_phase = 0
-   ; Progressive Speed (Vertical)
-   temp_v = var90
-   if boss_move_phase < 60 then bvy = temp_v 
-   if boss_move_phase >= 60 then bvy = 0 - temp_v
+   if boss_move_phase < 60 then bvx = temp_v else bvx = 0 - temp_v
 
 boss_apply_constraints
 
@@ -2915,23 +2890,8 @@ do_spawn_boss_fighter
 
 boss_special_attack
    if boss_on = 0 then return
-   
+   ; Levels 1-5 shoot at the player; level 6 throws asteroids
    if current_level < 6 then goto boss_fire_bullet
-   
-   ; Level 6: Asteroids
-   if current_level = 6 then goto boss_throw_asteroid
-   
-   ; Level 4-5: Blue Fighters
-   if current_level >= 4 then goto boss_spawn_blue_fighter
-   
-   ; Lower levels: No special attack, reset cooldown
-   boss_asteroid_cooldown = 60
-   return
-
-boss_spawn_blue_fighter
-   gosub spawn_blue_fighter
-   boss_asteroid_cooldown = 180 ; 3 seconds
-   return
 
 boss_throw_asteroid
    ; Only throw if asteroid slot is free
@@ -3074,6 +3034,27 @@ spawn_boss_bullet
    playsfx sfx_enemyfire 0
    return
 
+   ; Music Data (raw POKEY register streams, 30Hz)
+   ; Song_01: Title/Levels 2,5
+   ; Song_02: Levels 1,3,4
+   asm
+Song_01_Data:
+   incbin "music/Song_01_30hz.bin"
+   
+Song_02_Data:
+   incbin "music/Song_02_30hz.bin"
+
+Song_03_Data:
+   incbin "music/Song_03_30hz.bin"
+
+Song_Boss_Data:
+   incbin "music/Boss_30hz.bin"
+end
+
+   ; ---- Everything below lives in the DMA hole at $D000 (4KB) ----
+   ; Holey DMA makes this space between graphics blocks usable for code.
+   dmahole 0
+
 level_complete
    ; All fighters destroyed - level won!
    gosub StopMusic
@@ -3151,7 +3132,7 @@ lose_life
    gosub StopMusic
    
    ; Play Explosion Sound
-   playsfx 1
+   playsfx sfx_explode
    
    ; Death Animation Loop (8 frames)
    ; Use simple loop with frame delay
@@ -3260,15 +3241,9 @@ restart_level_common
    ; Clear screen from level complete/death displays
    clearscreen
    
-   ; Redraw and save static UI elements (hearts, treasures)
-   gosub draw_lives
-   gosub draw_treasures
-   
-   ; Force redraw of dynamic elements wiped by clearscreen
-   cached_shield = 255
-   cached_boss_hp = 255
-   
-   savescreen
+   ; Redraw and save static UI elements (hearts, treasures, bars)
+   gosub update_bars
+   gosub refresh_static_ui
    
    ; Reset player position - Segment 1 (Center of 512x512)
    px = 72 : py = 90
@@ -3375,12 +3350,12 @@ you_win_release
    screen_timer = 60 ; 1s input delay
    frame = 0
 you_win_wait
+   drawscreen ; one frame per pass, so the 1s input delay is real
    frame = frame + 1
    if switchreset then goto cold_start
    if screen_timer > 0 then screen_timer = screen_timer - 1
-   if screen_timer > 0 then goto you_win_wait 
-   
-   drawscreen
+   if screen_timer > 0 then goto you_win_wait
+
    if !joy0fire1 then goto you_win_wait
    goto cold_start
 
@@ -3587,22 +3562,6 @@ PlayMusic
    rts
 end
 
-   ; Music Data - Two Songs
-   ; Song_01: Title/Levels 2,5
-   ; Song_02: Levels 1,3,4
-   asm
-Song_01_Data:
-   incbin "music/Song_01_30hz.bin"
-   
-Song_02_Data:
-   incbin "music/Song_02_30hz.bin"
-
-Song_03_Data:
-   incbin "music/Song_03_30hz.bin"
-
-Song_Boss_Data:
-   incbin "music/Boss_30hz.bin"
-end
 
 spawn_blue_fighter
    ; Find free Blue Fighter slot
