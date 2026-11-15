@@ -2,7 +2,14 @@
    
    set 7800header 'name Astro Wing Starfighter'
 
-   ; set hssupport $4157
+   ; High score table (High Score Cart / AtariVox-SaveKey). $4157 = 'AW'.
+   ; Reserve the number in the AtariAge thread before release:
+   ; https://atariage.com/forums/topic/128432-high-score-cart-values/
+   set hssupport $4157
+   set hsgamename 'astro wing'
+   set hsdifficultytext 'easy' 'pro' 'easy' 'pro'
+   set hsscoresize 6
+   set hsgameranks 100000 'ace' 50000 'commander' 25000 'captain' 10000 'pilot' 0 'cadet'
    set zoneheight 16
 
    displaymode 160A
@@ -10,6 +17,25 @@
    set pokeysupport $450
  
    ; Import graphics
+   ; Block 0 ($C000): title banner (240 bytes a line) + small sprites (14)
+   incbanner graphics/title_screen_conv.png 160A 0 1 2 3
+   incgraphic graphics/bullet_conv.png
+   incgraphic graphics/fighter.png
+   incgraphic graphics/blue_fighter.png
+   incgraphic graphics/Energy.png
+   ; Explosion Frames (Split for animation)
+   incgraphic graphics/fighter_explode_00_conv.png
+   incgraphic graphics/fighter_explode_01_conv.png
+   incgraphic graphics/fighter_explode_02_conv.png
+   incgraphic graphics/fighter_explode_03_conv.png
+   incgraphic graphics/fighter_explode_04_conv.png
+   incgraphic graphics/fighter_explode_05_conv.png
+   incgraphic graphics/fighter_explode_06_conv.png
+   incgraphic graphics/fighter_explode_07_conv.png
+
+   ; Block 1 ($E000): the high score font must be the first graphic in its block
+   newblock
+   incgraphic graphics/hiscorefont.png 320A
    incgraphic graphics/sprite_spaceship1.png
    incgraphic graphics/sprite_spaceship2.png
    incgraphic graphics/sprite_spaceship3.png
@@ -26,21 +52,6 @@
    incgraphic graphics/sprite_spaceship14.png
    incgraphic graphics/sprite_spaceship15.png
    incgraphic graphics/sprite_spaceship16.png
-   
-   incgraphic graphics/bullet_conv.png
-   incgraphic graphics/fighter.png
-   incgraphic graphics/blue_fighter.png
-   incgraphic graphics/Energy.png
-   ; Explosion Frames (Split for animation)
-   incgraphic graphics/fighter_explode_00_conv.png
-   incgraphic graphics/fighter_explode_01_conv.png
-   incgraphic graphics/fighter_explode_02_conv.png
-   incgraphic graphics/fighter_explode_03_conv.png
-   incgraphic graphics/fighter_explode_04_conv.png
-   incgraphic graphics/fighter_explode_05_conv.png
-   incgraphic graphics/fighter_explode_06_conv.png
-   incgraphic graphics/fighter_explode_07_conv.png
-   incbanner graphics/title_screen_conv.png 160A 0 1 2 3
 
    incgraphic graphics/arrows_01.png 160A
    incgraphic graphics/arrows_02.png 160A
@@ -48,7 +59,6 @@
    incgraphic graphics/arrows_04.png 160A
    
    incgraphic graphics/asteroid_M_conv.png
-   ; incgraphic graphics/Boss_conv.png
    incgraphic graphics/BossV2_01.png
    incgraphic graphics/BossV2_02.png
    incgraphic graphics/BossV2_03.png
@@ -145,7 +155,7 @@
    ; Safety Buffer 76-79
       ; Starfield Variables (4 stars used)
    ; Moved to var80+ to prevent memory corruption from scratch vars
-   dim star_x = var80 ; 80-83 (Array [4]) - No conflict with music_zp at var98
+   dim star_x = var80 ; 80-83 (Array [4]) 
    dim star_y = $2500 ; 2500-2519
    dim star_c = $2520 ; 2520-2539
    dim sc1 = $2544
@@ -170,16 +180,11 @@
    dim acc_mx = var78
    dim acc_my = var79
 
-   ; Music State (Safe Zone per MEMORY_MAP)
-   dim music_active = $25AC ; 0=Stopped, 1=Playing
-   dim music_ptr_lo = $25AA
-   dim music_ptr_hi = $25AB
-   dim current_song = $25AF ; 1=Song_01, 2=Song_02 (Moved from 25AD conflict)
+   ; Music State (the player's own state is on the $2600 page)
+   dim music_ptr_hi = $25AB ; 0 = PlayMusic picks and starts a song, 1 = playing
+   dim current_song = $25AF ; 1=Song_01, 2=Song_02, 3=Song_03, 4=Boss
    
    
-   ; ASM Driver uses dedicated ZP vars stolen from star array (unused slots)
-   dim music_zp_lo = var98
-   dim music_zp_hi = var99
    
    dim rand_val = $254C
    dim screen_timer = $254D ; Generic timeout timer
@@ -229,7 +234,18 @@
    dim bf_kill_count = $25F9
    dim energy_timer = $25FA ; 4-second timeout timer
 
-   
+   ; HUD bars: RAM text plotted once into the saved screen, so changing
+   ; these bytes updates the bars with no re-plotting (see update_bars)
+   dim shield_bar = $25BD ; 10 chars
+   dim boss_bar = $25C7   ; 10 chars (must follow shield_bar)
+   dim arrow_x = $25D1    ; boss indicator, worked out in calc_boss_indicator
+   dim arrow_y = $25D2
+   dim arrow_f = $25D3    ; 0-3 = left/up/right/down, 255 = hidden
+   dim cached_bossbar = $25D4 ; 1 while the boss bar is in the saved screen
+   dim attract_timer = $25D5  ; title time before the high score tables (2 frames a tick)
+   dim hs_mute = $25D6        ; 1 = cancel TIA sound effects (initials entry clicks)
+
+
    ; Aliases for plotsprite usage
    dim bul_x0 = var18 : dim bul_x1 = var19 : dim bul_x2 = var20 : dim bul_x3 = var21
    dim bul_y0 = var22 : dim bul_y1 = var23 : dim bul_y2 = var24 : dim bul_y3 = var25
@@ -259,9 +275,13 @@ cold_start
 reset_release_wait
    if switchreset then goto reset_release_wait
    
+   gosub StopMusic ; Ensure music state is clean (also sets music_ptr_hi = 0)
+
+title_restart
+   ; (after high score entry we come in here, so the title song keeps playing)
    screen_timer = 60 ; 1s input delay
-   music_active = 0 ; Ensure music state is clean
-   music_ptr_hi = 0 ; Reset music pointer
+   attract_timer = 0
+   hs_mute = 0
    boss_state = 0 ; Reset boss state (prevents music logic from thinking boss is active)
    asteroid_timer = 0 ; Reset rotation timer
    boss_asteroid_cooldown = 0 ; Reset rotation timer
@@ -269,17 +289,7 @@ reset_release_wait
     if current_song = 0 then current_song = 1 ; Default to song 1 on first boot only
 
 
-   ; Palette Setup
-   P0C1=$26: P0C2=$24: P0C3=$04 ; Background/UI
-   P1C1=$C2: P1C2=$C6: P1C3=$CA ; Player Bullets (Green)
-   P2C1=$04: P2C2=$08: P2C3=$0C ; Asteroids (Greys)
-   P3C1=$B4: P3C2=$46: P3C3=$1C ; Enemy (Green, Red, Yellow)
-   P4C1=$08: P4C2=$0C: P4C3=$0F ; Stars
-   P5C1=$34: P5C2=$86: P5C3=$0A ; Spaceship
-   P6C1=$42: P6C2=$46: P6C3=$4A ; Enemy Bullets (Red)
-   P7C1=$C8: P7C2=$46: P7C3=$1C ; Title Screen (Vibrant)
-
-   BACKGRND=$00
+   gosub set_palettes
    
    ; Initialize difficulty settings (will be overridden by set_level_config)
    enemy_move_mask = 1        ; Default: slow movement
@@ -344,7 +354,7 @@ title_release_wait
     characterset unified_font
     plotchars 'VERSION' 1 12 11
     plotchars '*+-/<' 7 60 1
-    plotchars '20260126' 1 84 11
+    plotchars '20261030' 1 84 11
     
     ; Difficulty Display
     plotchars 'DIFFICULTY' 1 20 9
@@ -372,7 +382,7 @@ title_release_wait
     temp_v = (temp_v * 16) + 12
     P7C3 = temp_v
 
-    if joy0fire1 then goto restore_pal_story
+    if joy0fire1 then goto restore_pal_game
     
     ; Music Rotation Timer (2 Minutes)
    ; Use frame counter to tick seconds
@@ -383,6 +393,8 @@ title_release_wait
    if asteroid_timer = 0 then boss_asteroid_cooldown = boss_asteroid_cooldown + 1 ; Hi Byte
    
    if boss_asteroid_cooldown >= 28 then gosub rotate_music
+   ; After ~8.5s of title, show the high score tables
+   if frame & 1 then attract_timer = attract_timer + 1 : if attract_timer = 0 then goto title_attract
 
     gosub PlayMusic ; Continue music playback (allows rotation to take effect)
 
@@ -396,15 +408,48 @@ title_no_reset
     
     goto title_loop
 
-restore_pal_story
-   P7C1=$C8: P7C2=$46: P7C3=$1C
-   goto init_game
-
 restore_pal_game
    P7C1=$C8: P7C2=$46: P7C3=$1C
    goto init_game
 
-   goto init_game
+set_palettes
+   ; (also needed after drawhiscores, which changes the palettes)
+   P0C1=$26: P0C2=$24: P0C3=$04 ; Background/UI
+   P1C1=$C2: P1C2=$C6: P1C3=$CA ; Player Bullets (Green)
+   P2C1=$04: P2C2=$08: P2C3=$0C ; Asteroids (Greys)
+   P3C1=$B4: P3C2=$46: P3C3=$1C ; Enemy (Green, Red, Yellow)
+   P4C1=$08: P4C2=$0C: P4C3=$0F ; Stars
+   P5C1=$34: P5C2=$86: P5C3=$0A ; Spaceship
+   P6C1=$42: P6C2=$46: P6C3=$4A ; Enemy Bullets (Red)
+   P7C1=$C8: P7C2=$46: P7C3=$1C ; Title Screen (Vibrant)
+   BACKGRND=$00
+   return
+
+title_attract
+   ; The table for the difficulty on the switch, then the other one (~6s
+   ; each), then the title again. Fire during a table goes straight back.
+   if switchleftb then gamedifficulty = 0 else gamedifficulty = 1
+   drawhiscores attract
+   if joy0fire1 then goto title_attract_done
+   gamedifficulty = gamedifficulty ^ 1
+   drawhiscores attract
+title_attract_done
+   gosub set_palettes
+   attract_timer = 0
+   goto title_loop
+
+enter_hiscore
+   ; Game over or won: initials entry if the score made the table, to the
+   ; title song (which carries on into the title screen)
+   gosub StopMusic
+   boss_state = 0 : current_level = 0
+   gosub PlayMusic
+   if game_difficulty = 1 then gamedifficulty = 0 else gamedifficulty = 1
+   hs_mute = 1 ; no letter clicks, just the music
+   drawhiscores single
+   hs_mute = 0
+   gosub set_palettes
+   goto title_restart
 
 rotate_music
    boss_asteroid_cooldown = 0
@@ -464,8 +509,6 @@ init_game
     
     score0 = 0
     ; Initialize boss (Level 6)
-    if current_level = 6 then gosub init_boss
-    if current_level = 6 then fighters_remaining = 99 : fighters_bcd = converttobcd(99)
     
     ; Initialize prize system (all active)
     prize_active0 = 1
@@ -519,9 +562,8 @@ init_game
    gosub init_stars
    
    ; Initial UI draw (force first render)
-   gosub draw_lives
-   gosub draw_treasures
-   savescreen  ; Save static UI elements
+   gosub update_bars
+   gosub refresh_static_ui
    
    ready_flag = 2
 
@@ -537,8 +579,7 @@ main_loop
    frame = frame + 1
 
    ; ---- Level Start Button Wait ----
-   if ready_flag > 0 then plotchars 'PRESS FIRE' 5 40 8 : plotchars 'TO START' 5 48 9
-   
+   ; (PRESS FIRE is plotted with the rest of the frame: plotting waits for vblank)
    if ready_flag = 2 then if !joy0fire1 then ready_flag = 1
    if ready_flag = 1 then if joy0fire1 then ready_flag = 0
    if ready_flag > 0 then goto skip_enemy_updates
@@ -667,39 +708,30 @@ skip_enemy_updates
 
    gosub update_render_coords
    gosub update_bf_render_coords
+   gosub calc_boss_indicator
 
-    ; ---- Draw ----
-    ; Draw Scores
-    ; Player (Left) - Green (Pal 3)
-    ; ---- Lives Display (Top Left) ----
-    ; Using Palette 3 (Green)
-    ; ---- Lives Display (Top Left) ----
-    ; Using Palette 5 (Red) per user request
-    ; Unrolled Loop for 3 Hearts (Fast)
-    ; UI Draw Section - All using unified_font
-    ; characterset unified_font
+    ; ---- Work that doesn't plot (runs while the screen is drawn) ----
+    ; 7800basic only lets us plot during vblank (~8000 cycles), so keep
+    ; everything that isn't a plot above the first plot of the frame.
+    gosub PlayMusic
 
-    ; ---- UI Rendering (Optimized) ----
-    
-    ; Creates optimized UI
-    
-    ; Lives Display (only update when changed)
+    ; HUD bars are RAM text in the saved screen: just rewrite their bytes
+    if player_shield <> cached_shield then gosub update_bars
+    if boss_hp <> cached_boss_hp then gosub update_bars
+
+    ; Rebuild the saved screen only when lives, level or the boss bar change
+    temp_v = 0 : if boss_state > 0 && boss_state < 5 then temp_v = 1
+    if temp_v <> cached_bossbar then gosub refresh_static_ui
     if player_lives <> cached_lives then gosub refresh_static_ui
-    
-    ; Treasures Display (only update when level changes)
     if current_level <> cached_level then gosub refresh_static_ui
-    
-    ; Boss Health Display
-    if boss_state > 0 && boss_state <= 4 then if boss_hp <> cached_boss_hp then gosub refresh_static_ui
-    if boss_state = 0 then goto main_skip_boss_ui
-    if boss_state > 4 then goto main_skip_boss_ui
-    
-main_skip_boss_ui
-    ; Dynamic values (update every frame)
-    ; Shield (Left, Green, Palette 3)
-    ; Shield (Left, Green, Palette 3)
-    ; Now handled by refresh_static_ui with progress bar
-    if player_shield <> cached_shield then gosub refresh_static_ui
+
+    ; ---- Low Health Warning (Palette Swap) ----
+    if player_shield >= 20 then P5C2=$86 : goto skip_health_warn
+    if (frame & 32) > 0 then P5C2=$34 else P5C2=$86
+skip_health_warn
+
+    ; ---- Draw (vblank) ----
+    if ready_flag > 0 then plotchars 'PRESS FIRE' 5 40 8 : plotchars 'TO START' 5 48 9
     ; Score (Center, Palette 5)
     plotvalue unified_font 0 score0 6 56 0
     
@@ -719,20 +751,8 @@ main_skip_boss_ui
 
      if alife > 0 then gosub draw_asteroid
      if boss_on = 1 then gosub draw_boss
-     gosub draw_boss_indicator
+     if arrow_f < 4 then plotsprite arrows_01 6 arrow_x arrow_y arrow_f
      gosub draw_enemy_bullets
-     
-     ; Update Music
-     gosub PlayMusic
-  
-     ; ---- Low Health Warning (Palette Swap) ----
-     ; P5C1 ($34), P5C2 ($86) and P5C3 ($0A) 
-     if player_shield >= 20 then P5C2=$86 : goto skip_health_warn
-     
-     ; Flash every 30 frames (0.5s)
-     if (frame & 32) > 0 then P5C2=$34 else P5C2=$86
-     
-skip_health_warn
 
      drawscreen
     goto main_loop
@@ -853,8 +873,6 @@ spawn_bullet
    ; Use sin_table values directly (Max 6px/frame)
    ; Previous logic divided by 2 (Max 3px/frame) which was slower than player.
    
-   temp_v = sin_table[angle]
-   if temp_v >= 128 then temp_v = 0 - temp_v : temp_v = 0 - temp_v ; Keep sign? No, bul_vx expects 0-255 format.
    ; Wait, 7800Basic doesn't handle negative assignment well in one line?
    ; Let's respect the table format.
    
@@ -1383,15 +1401,16 @@ skip_enemy_coll
          if bf_on[temp_acc] = 0 then goto skip_bul_bf
          if bflife[temp_acc] <> 1 then goto skip_bul_bf
          
+         ; Centre to centre: bullet dot (+2,+2), blue fighter (+4,+4)
+         temp_w = 18 : if game_difficulty = 1 then temp_w = 19
          temp_v = bul_x[iter] - bfx_scr[temp_acc]
-         temp_v = temp_v - 6 ; Center Offset
+         temp_v = temp_v - 2
          if temp_v >= 128 then temp_v = 0 - temp_v
-         temp_w = 18 : if game_difficulty = 1 then temp_w = 19
          if temp_v >= temp_w then goto skip_bul_bf
-         
+
          temp_v = bul_y[iter] - bfy_scr[temp_acc]
-         temp_v = temp_v - 6
-         temp_w = 18 : if game_difficulty = 1 then temp_w = 19
+         temp_v = temp_v - 2
+         if temp_v >= 128 then temp_v = 0 - temp_v
          if temp_v >= temp_w then goto skip_bul_bf
          
          ; Hit!
@@ -1681,7 +1700,6 @@ skip_ebul_coll
 
    ; Only check if boss is active
    if boss_state = 0 then goto coll_done
-   if boss_state = 0 then goto coll_done
    if boss_on = 0 then goto coll_done
    
    ; Define Dynamic Hitbox based on Level
@@ -1808,10 +1826,11 @@ coll_done
 
 boss_defeated
    ; Boss destroyed - trigger level complete
-   
+   gosub update_bars ; empty the boss bar before the explosion freezes the HUD
+
    ; Play Explosion Sound
    gosub StopMusic
-   playsfx 1
+   playsfx sfx_explode
    
    ; Boss Explosion Animation (8 frames)
    boss_on = 0 ; Hide the actual boss sprite immediately
@@ -2014,12 +2033,6 @@ a_y_done
     ; Both Visible!
     a_on = 1
     goto boss_coords_check
-
-
-   
-   ; Just use primitive following for now.
-   ; screen_y = py - cam_y (approx)
-   goto boss_coords_check
 
 ; --- Boss (Level 6) ---
 boss_coords_check
@@ -2299,110 +2312,70 @@ draw_treasures
    return
 
 refresh_static_ui
+    ; Rebuild the saved screen: hearts, treasures, the bars (RAM text).
+    ; Only needed when lives, level or the boss bar's presence change.
     clearscreen
-    
-    ; 1. Draw Lives (Standard Scoredigits)
-    ; 1. Draw Lives (Standard Scoredigits)
     gosub draw_lives
     gosub draw_treasures
-    
-    ; 2. Draw Boss Health (Alphabet)
-    ; 2. Draw Boss Health (Alphabet)
-    if boss_state = 0 then goto skip_boss_ui
-    if boss_state > 4 then goto skip_boss_ui
-        
-    ; Draw BOSS label
-    plotchars 'BOSS' 5 64 10
-    
-    ; Draw Dollars based on HP
-    ; Draw Dollar Bar (Using Graph Logic)
-    ; Scale: (val * 8) / 10 = val - (val/5)
-    temp_v = boss_hp / 5
-    temp_v = boss_hp - temp_v
-    
-    temp_bx = 40
-    temp_by = 10
-    temp_w = 2
-    gosub draw_bar_graph
 
-skip_boss_ui
-    ; 3. Draw Player Shield (Unified Font Bar)
-    ; Shield 0-100. Max width 80px (10 blocks)
-    ; Scaling: (shield * 8) / 10 = shield * 4/5
-    ; Better approximation to avoid overflow: shield - (shield / 5)
-    temp_v = player_shield / 5
-    temp_v = player_shield - temp_v
-    
-    ; temp_bx = 20 ; Center it slightly? Or Left? 
-    ; User said "bottom left". Left margin 0 or 8?
-    ; Version text was at 20. Collisions?
-    ; Let's put it at 10 to give some padding. Or 0?
-    temp_bx = 0
-    temp_by = 11
-    temp_w = 3 ; Palette 3 (Green)
-    ; But low health swaps Palette 5 (Spacehsip). Bar uses Pal 3?
-    ; Let's switch bar to Palette 5 to match effect if implied?
-    ; No, user said "linked player palette to shield bar" in Step 370 request context but code used P5. Bar uses P3 (Green).
-    ; Bar should arguably use P5 if "Linked".
-    temp_w = 5
-    gosub draw_bar_graph
-    ; 3. Restore Scoredigits (Safety)
-    ; 3. Restore Scoredigits (Safety)
-    ; (No longer needed with unified font)
-    
-    ; Update all caches since we just redrew everything
-    cached_lives = player_lives
-    cached_level = current_level
-    cached_boss_hp = boss_hp
-    cached_shield = player_shield
-    
+    cached_bossbar = 0
+    if boss_state > 0 && boss_state < 5 then cached_bossbar = 1 : plotchars 'BOSS' 5 64 10 : plotchars boss_bar 2 40 10 10
+    plotchars shield_bar 5 0 11 10
+
     savescreen
     return
 
-draw_bar_graph
-    ; Input: temp_v (pixels), temp_bx (x), temp_by (y), temp_w (pal)
-    ; Uses: iter, temp_acc, temp_v
-    
-    ; if temp_v = 0 then return ; removed to allow drawing empty bars
-    
-    ; Full blocks
-    temp_acc = temp_v / 8
-    
-    if temp_acc = 0 then goto draw_bar_remainder
-    
-    ; Loop full blocks
-    for iter = 1 to temp_acc
-        plotchars '$' temp_w temp_bx temp_by
-        temp_bx = temp_bx + 8
-    next
-    
-    if temp_acc >= 10 then return
-    
-draw_bar_remainder
-    ; Remainder
-    temp_v = temp_v & 7
-    ; Explicit Literal Map
-    if temp_v = 0 then plotchars ':' temp_w temp_bx temp_by
-    if temp_v = 1 then plotchars '(' temp_w temp_bx temp_by
-    if temp_v = 2 then plotchars ')' temp_w temp_bx temp_by
-    if temp_v = 3 then plotchars '.' temp_w temp_bx temp_by
-    if temp_v = 4 then plotchars ',' temp_w temp_bx temp_by
-    if temp_v = 5 then plotchars '!' temp_w temp_bx temp_by
-    if temp_v = 6 then plotchars '?' temp_w temp_bx temp_by
-    if temp_v = 7 then plotchars '"' temp_w temp_bx temp_by
-    
-    ; Setup for filling empty spots
-    ; Increment x to next block for loop
-    temp_bx = temp_bx + 8
-    temp_acc = temp_acc + 1
-    
-    ; Loop until we reach 10 blocks
-fill_remainder_loop
-    if temp_acc >= 10 then return
-    plotchars ':' temp_w temp_bx temp_by
-    temp_bx = temp_bx + 8
-    temp_acc = temp_acc + 1
-    goto fill_remainder_loop
+update_bars
+    ; Rewrite the bar characters from shield and boss HP (0-100 -> 0-80 px)
+    temp_v = player_shield / 5 : temp_v = player_shield - temp_v
+    asm
+    lda temp_v
+    ldx #0
+    jsr fill_bar
+end
+    temp_v = boss_hp / 5 : temp_v = boss_hp - temp_v
+    asm
+    lda temp_v
+    ldx #10
+    jsr fill_bar
+end
+    cached_shield = player_shield
+    cached_boss_hp = boss_hp
+    return
+
+    asm
+; A = pixels (0-80), X = 0 (shield_bar) or 10 (boss_bar). 10 chars, 8 px each.
+fill_bar
+    sta temp1
+    txa
+    clc
+    adc #10
+    sta temp2
+fill_bar_loop
+    lda temp1
+    cmp #8
+    bcc fill_bar_part
+    lda #8
+fill_bar_part
+    tay
+    sty temp3
+    lda temp1
+    sec
+    sbc temp3
+    sta temp1
+    lda bar_chars,y
+    sta shield_bar,x
+    inx
+    cpx temp2
+    bne fill_bar_loop
+    rts
+; characters for 0-8 lit pixels  : ( ) . , ! ? " $
+bar_chars
+    .byte <(unified_font+90), <(unified_font+86), <(unified_font+88)
+    .byte <(unified_font+74), <(unified_font+80), <(unified_font+76)
+    .byte <(unified_font+78), <(unified_font+82), <(unified_font+84)
+end
+
 
 
    ; ---- Data Tables (ROM) ----
@@ -2439,6 +2412,20 @@ end
    $0A,$08,$08 ; descending pitch
    $0C,$08,$06 ; fade out
    $0E,$08,$04
+   $00,$00,$00
+end
+
+   ; Explosion - noise falling in pitch and fading (player death, boss death)
+   data sfx_explode
+   16, 2, 6 ; version, priority, frames per chunk
+   $06,$08,$0F
+   $0A,$08,$0E
+   $0E,$08,$0C
+   $12,$08,$0A
+   $16,$08,$08
+   $1A,$08,$06
+   $1E,$08,$04
+   $1F,$08,$02
    $00,$00,$00
 end
 
@@ -2534,90 +2521,166 @@ draw_boss_composite
    
    return
 
-draw_boss_indicator
-   if boss_state = 0 then return
-   
-   ; Hysteresis Logic: Show arrow if Boss is Off-Screen or Near Edge
-   ; Safe Zone: Center Screen with Margin
-   ; Screen 160x192. Boss 32x64.
-   ; Center X: 80. Boss Center: boss_scr_x + 16.
-   ; Center Y: 96. Boss Center: boss_scr_y + 32.
-   
-   temp_v = 1 ; Default Show
-   
-   if boss_on = 0 then goto show_arrow_check_done
-   
-   ; Check if "Safely Inside" Safe Zone
-   ; Center X: 80. Boss Center: boss_scr_x + 16.
-   temp_acc = boss_scr_x + 16
-   if temp_acc > 80 then temp_w = temp_acc - 80 else temp_w = 80 - temp_acc
-   
-   ; Margin 48 (Safe Zone width 96px centered, X range 32..128)
-   ; If outside margin (>= 48), Show.
-   if temp_w >= 48 then goto show_arrow_check_done
-   
-   ; Check Y
-   ; Center Y: 96. Boss Center: boss_scr_y + 32.
-   temp_acc = boss_scr_y + 32
-   if temp_acc > 96 then temp_w = temp_acc - 96 else temp_w = 96 - temp_acc
-   
-   ; Margin 64 (Safe Zone height 128px centered, Y range 32..160)
-   if temp_w >= 64 then goto show_arrow_check_done
-   
-   return ; Safely Inside -> Hide Arrow
-
-show_arrow_check_done
-   ; Determine Zone (hi_x, hi_y)
-   if boss_x_hi = 0 then goto zone_0_or_2
-   if boss_y_hi = 0 then goto zone_1
-   
-   ; --- Zone 3 (1,1) ---
-   if boss_x > 160 then if boss_y < 192 then goto z3_right
-   if boss_x < 160 then if boss_y > 192 then goto z3_bottom
-   ; Bottom corner
-   temp_acc = 3 : temp_v = 150 : temp_w = 180 : goto hud_plot_switch
-
-z3_right
-   temp_acc = 2 : temp_v = 150 : temp_w = boss_y : goto z_clamp_y
-z3_bottom
-   temp_acc = 3 : temp_v = boss_x : temp_w = 180 : goto z_clamp_x
-
-zone_1 ; (1,0) Above us?
-   if boss_y > 128 then goto z1_top
-   ; z1_bottom
-   temp_acc = 3 : temp_v = boss_x : temp_w = 180 : goto z_clamp_x
-z1_top
-   temp_acc = 1 : temp_v = boss_x : temp_w = 4 : goto z_clamp_x
-
-zone_0_or_2
-   if boss_y_hi = 1 then goto zone_2
-   
-   ; --- Zone 0 (0,0) Top Left ---
-   temp_acc = 1 : temp_v = 4 : temp_w = 4 : goto hud_plot_switch
-
-zone_2 ; (0,1) Left of us?
-   if boss_x > 128 then goto z2_left
-   ; z2_right
-   temp_acc = 2 : temp_v = 150 : temp_w = boss_y : goto z_clamp_y
-z2_left
-   temp_acc = 0 : temp_v = 4 : temp_w = boss_y : goto z_clamp_y
-
-z_clamp_x
-   if temp_v < 4 then temp_v = 4
-   if temp_v > 150 then temp_v = 150
-   goto hud_plot_switch
-
-z_clamp_y
-   if temp_w < 4 then temp_w = 4
-   if temp_w > 180 then temp_w = 180
-   goto hud_plot_switch
-
-hud_plot_switch
-   if temp_acc = 0 then plotsprite arrows_01 6 temp_v temp_w
-   if temp_acc = 1 then plotsprite arrows_02 6 temp_v temp_w
-   if temp_acc = 2 then plotsprite arrows_03 6 temp_v temp_w
-   if temp_acc = 3 then plotsprite arrows_04 6 temp_v temp_w
-   return
+calc_boss_indicator
+   ; Arrow pointing the short way (the world wraps at 512) from the screen
+   ; centre to the boss's centre. Worked out in half pixels so a 9-bit
+   ; signed distance fits a byte. Hidden while the boss is well on screen.
+   asm
+   lda #255
+   sta arrow_f
+   lda boss_state
+   beq ci_off
+   cmp #5
+   bcc ci_on
+ci_off
+   rts
+ci_on
+   ; boss half width: 8 on levels 1 and 3, else 16; half height: 16 from level 5
+   ldx #16
+   ldy #8
+   lda current_level
+   cmp #5
+   bcc ci_short
+   ldy #16
+ci_short
+   cmp #1
+   beq ci_narrow
+   cmp #3
+   bne ci_wide
+ci_narrow
+   ldx #8
+ci_wide
+   stx temp1
+   sty temp2
+   ; dx/2 = ((boss_x_hi:boss_x) + half width - (1:80)) >> 1, bit 8 as sign
+   lda boss_x
+   clc
+   adc temp1
+   tax
+   lda boss_x_hi
+   adc #0
+   tay
+   txa
+   sec
+   sbc #80
+   tax
+   tya
+   sbc #1
+   lsr
+   txa
+   ror
+   sta temp3
+   ; dy/2, the same from (1:96)
+   lda boss_y
+   clc
+   adc temp2
+   tax
+   lda boss_y_hi
+   adc #0
+   tay
+   txa
+   sec
+   sbc #96
+   tax
+   tya
+   sbc #1
+   lsr
+   txa
+   ror
+   sta temp4
+   ; |dx/2| -> temp5, |dy/2| -> temp6
+   lda temp3
+   bpl ci_absx
+   eor #255
+   clc
+   adc #1
+ci_absx
+   sta temp5
+   lda temp4
+   bpl ci_absy
+   eor #255
+   clc
+   adc #1
+ci_absy
+   sta temp6
+   ; at least 8 px of the boss on screen both ways: no arrow
+   ; (|dx| < 80 + half width - 8 and |dy| < 96 + half height - 8, in half px)
+   lda temp1
+   lsr
+   adc #36
+   cmp temp5
+   bcc ci_show
+   beq ci_show
+   lda temp2
+   lsr
+   adc #44
+   cmp temp6
+   beq ci_show
+   bcs ci_done
+ci_show
+   ; past the side edges by more than past top/bottom (|dx|-80 >= |dy|-96)?
+   lda temp5
+   clc
+   adc #8
+   cmp temp6
+   bcc ci_vertical
+   ; left (frame 0) at x 4 or right (frame 2) at x 150
+   ldx #0
+   lda #4
+   bit temp3
+   bmi ci_hset
+   ldx #2
+   lda #150
+ci_hset
+   stx arrow_f
+   sta arrow_x
+   ; y = 92 + 2 * clamp(dy/2, -44..44) -> 4..180
+   lda temp4
+   bmi ci_yneg
+   cmp #44
+   bcc ci_yok
+   lda #44
+   bne ci_yok
+ci_yneg
+   cmp #212
+   bcs ci_yok
+   lda #212
+ci_yok
+   asl
+   clc
+   adc #92
+   sta arrow_y
+   rts
+ci_vertical
+   ; up (frame 1) at y 4 or down (frame 3) at y 180
+   ldx #1
+   lda #4
+   bit temp4
+   bmi ci_vset
+   ldx #3
+   lda #180
+ci_vset
+   stx arrow_f
+   sta arrow_y
+   ; x = 76 + 2 * clamp(dx/2, -36..37) -> 4..150
+   lda temp3
+   bmi ci_xneg
+   cmp #37
+   bcc ci_xok
+   lda #37
+   bne ci_xok
+ci_xneg
+   cmp #220
+   bcs ci_xok
+   lda #220
+ci_xok
+   asl
+   clc
+   adc #76
+   sta arrow_x
+ci_done
+   rts
+end
 
 init_boss
    ; Initialize Boss for Level 6
@@ -2714,54 +2777,16 @@ skip_fighter_spawn_check
    ; --- Boss Movement Logic ---
    if boss_on = 0 then bvx = 0 : bvy = 0 : return
 
-   ; 1. Base Oscillation (Default State)
-   ; Determine closest edge to find oscillation axis
-   temp_v = boss_scr_y ; Min Y dist (Top)
-   if boss_scr_y > 192 then temp_v = 0 - boss_scr_y
-   
-   temp_w = 192 - boss_scr_y ; Bottom
-   if boss_scr_y > 192 then temp_w = 0
-   if temp_w < temp_v then temp_v = temp_w ; temp_v is Min Y Dist
-   
-   temp_w = boss_scr_x ; Min X dist (Left)
-   if boss_scr_x > 160 then temp_w = 0 - boss_scr_x
-   
-   var90 = 160 - boss_scr_x ; Right
-   if boss_scr_x > 160 then var90 = 0
-   if var90 < temp_w then temp_w = var90 ; temp_w is Min X Dist
-   
-   ; Progressive Speed Calculation (Shared)
+   ; 1. Base Oscillation: back and forth, faster on later levels
    ; L1-2: Speed 2. L3-4: Speed 3. L5-6: Speed 4.
-   var90 = 2
-   if current_level >= 3 then var90 = 3
-   if current_level >= 5 then var90 = 4
+   temp_v = 2
+   if current_level >= 3 then temp_v = 3
+   if current_level >= 5 then temp_v = 4
 
-   ; Determine closest edge to find oscillation axis
-   temp_v = boss_scr_y ; Min Y dist (Top)
-
-boss_osc_horizontal
    bvy = 0
    boss_move_phase = boss_move_phase + 1
    if boss_move_phase >= 120 then boss_move_phase = 0
-   if boss_move_phase >= 120 then boss_move_phase = 0
-   ; Progressive Speed (Horizontal)
-   temp_v = var90
-   if boss_move_phase < 60 then bvx = temp_v 
-   if boss_move_phase >= 60 then bvx = 0 - temp_v
-   goto boss_apply_constraints
-   
-   ; Legacy logic replaced above
-   ; if boss_move_phase < 60 then bvx = 3 else bvx = 253
-   goto boss_apply_constraints
-
-boss_osc_vertical
-   bvx = 0
-   boss_move_phase = boss_move_phase + 1
-   if boss_move_phase >= 120 then boss_move_phase = 0
-   ; Progressive Speed (Vertical)
-   temp_v = var90
-   if boss_move_phase < 60 then bvy = temp_v 
-   if boss_move_phase >= 60 then bvy = 0 - temp_v
+   if boss_move_phase < 60 then bvx = temp_v else bvx = 0 - temp_v
 
 boss_apply_constraints
 
@@ -2915,23 +2940,8 @@ do_spawn_boss_fighter
 
 boss_special_attack
    if boss_on = 0 then return
-   
+   ; Levels 1-5 shoot at the player; level 6 throws asteroids
    if current_level < 6 then goto boss_fire_bullet
-   
-   ; Level 6: Asteroids
-   if current_level = 6 then goto boss_throw_asteroid
-   
-   ; Level 4-5: Blue Fighters
-   if current_level >= 4 then goto boss_spawn_blue_fighter
-   
-   ; Lower levels: No special attack, reset cooldown
-   boss_asteroid_cooldown = 60
-   return
-
-boss_spawn_blue_fighter
-   gosub spawn_blue_fighter
-   boss_asteroid_cooldown = 180 ; 3 seconds
-   return
 
 boss_throw_asteroid
    ; Only throw if asteroid slot is free
@@ -3074,6 +3084,529 @@ spawn_boss_bullet
    playsfx sfx_enemyfire 0
    return
 
+   ; ============================================
+   ; Ending screens: victory and game over
+   ; ============================================
+   ; Shared RAM on the $2600 page (free while these screens run)
+   dim es_x = $2650     ; [8] star x
+   dim es_y = $2658     ; [8] star y
+   dim es_v = $2660     ; [8] star speed
+   dim es_t = $2668     ; time on this screen (stops at 255)
+   dim es_sx = $2669    ; ship x
+   dim es_sy = $266A    ; ship y
+   dim es_fr = $266B    ; ship frame (game over tumble)
+   dim es_by = $266C    ; ship y with the bob (victory)
+   dim es_ready = $266D ; 1 = fire released after the text, so fire continues
+   dim deb_x = $2670    ; [4] debris
+   dim deb_y = $2674    ; [4]
+
+victory_screen
+   ; Hyperspace stars, the ship rising with the five relics circling it,
+   ; the story a line at a time, to the title song.
+   gosub StopMusic
+   boss_state = 0 : current_level = 0
+   gosub PlayMusic
+   gosub set_palettes
+   for iter = 0 to 7
+      temp_v = rand & 127 : es_x[iter] = temp_v + 16
+      temp_v = rand : if temp_v > 191 then temp_v = temp_v - 64
+      es_y[iter] = temp_v
+      temp_v = rand & 3 : es_v[iter] = temp_v + 2
+   next
+   es_t = 0 : es_ready = 0 : es_sy = 200 : es_by = 200
+   gosub victory_text
+
+victory_loop
+   restorescreen
+
+   ; stars streaming down
+   for iter = 0 to 7
+      temp_v = es_y[iter] + es_v[iter]
+      if temp_v > 191 then temp_v = 0 : temp_w = rand & 127 : es_x[iter] = temp_w + 16
+      es_y[iter] = temp_v
+   next
+
+   ; the ship rises to y 84, then bobs gently
+   if es_sy > 84 then es_sy = es_sy - 2
+   es_by = es_sy
+   if es_sy <= 84 then temp_v = (frame / 8) & 15 : es_by = 84 + bob_table[temp_v]
+
+   ; the story, a line at a time
+   if es_t < 255 then es_t = es_t + 1
+   if es_t = 40 || es_t = 100 then gosub victory_text
+   if es_t = 160 || es_t = 220 then gosub victory_text
+
+   ; VICTORY and the relics glow through the title's colours
+   temp_acc = frame / 4
+   temp_v = (12 + temp_acc) & 15 : P7C1 = (temp_v * 16) + 8
+   temp_v = (4 + temp_acc) & 15 : P7C2 = (temp_v * 16) + 6
+   temp_v = (1 + temp_acc) & 15 : P7C3 = (temp_v * 16) + 12
+
+   ; fire (a fresh press, not one held from before): skip to the end of
+   ; the story, then on to the high scores
+   if switchreset then goto cold_start
+   if !joy0fire1 then es_ready = 1
+   if es_ready = 0 || !joy0fire1 then goto victory_input_done
+   es_ready = 0
+   if es_t >= 220 then goto enter_hiscore
+   es_t = 219
+victory_input_done
+
+   ; ---- draw ----
+   for iter = 0 to 7
+      temp_v = es_x[iter] : temp_w = es_y[iter]
+      plotsprite bullet_conv 4 temp_v temp_w
+   next
+   plotsprite sprite_spaceship1 5 72 es_by 0
+
+   ; relics join one at a time once the ship has arrived, then circle it
+   if es_t < 60 then goto victory_no_relics
+   temp_bx = es_t - 60 : temp_bx = temp_bx / 10
+   if temp_bx > 4 then temp_bx = 4
+   temp_by = frame / 4
+   for iter = 0 to temp_bx
+      temp_acc = relic_spacing[iter] + temp_by : temp_acc = temp_acc & 15
+      temp_v = 76 + orbit_x[temp_acc]
+      temp_w = es_by + orbit_y[temp_acc] : temp_w = temp_w - 3
+      plotsprite relic_gfx 7 temp_v temp_w iter
+   next
+victory_no_relics
+
+   if es_t >= 220 then if (frame & 32) > 0 then plotchars 'PRESS FIRE' 0 40 11
+   drawscreen
+   frame = frame + 1
+   goto victory_loop
+
+victory_text
+   ; the parts that don't move, saved so each frame only plots what moves
+   clearscreen
+   plotvalue unified_font 0 score0 6 56 0
+   plotchars 'VICTORY' 7 52 2
+   if es_t >= 40 then plotchars 'RELICS RECOVERED' 1 16 3
+   if es_t >= 100 then plotchars 'THE GALAXY IS SAFE' 3 8 9
+   if es_t >= 160 then plotchars 'THANKS FOR PLAYING' 5 8 10
+   savescreen
+   return
+
+gameover_screen
+   ; The wreck tumbles away and fades, debris flies off, GAME OVER pulses,
+   ; and how far you got: the sector and the relics you'd won.
+   gosub StopMusic
+   gosub set_palettes
+   playsfx sfx_gameover
+   for iter = 0 to 7
+      temp_v = rand & 127 : es_x[iter] = temp_v + 16
+      temp_v = rand : if temp_v > 191 then temp_v = temp_v - 64
+      es_y[iter] = temp_v
+   next
+   for iter = 0 to 3
+      deb_x[iter] = 78 : deb_y[iter] = 74
+   next
+   es_t = 0 : es_ready = 0 : es_sx = 72 : es_sy = 66 : es_fr = 0
+   gosub gameover_text
+
+gameover_loop
+   restorescreen
+   if es_t < 255 then es_t = es_t + 1
+
+   ; stars drift slowly
+   if (frame & 3) = 0 then gosub gameover_stars
+
+   ; the wreck tumbles and drifts away
+   if (frame & 7) = 0 then es_fr = es_fr + 1 : es_fr = es_fr & 15
+   if (frame & 3) = 0 then if es_sy < 124 then es_sy = es_sy + 1
+   if (frame & 7) = 0 then if es_sx < 110 then es_sx = es_sx + 1
+
+   ; ...and fades (luminance down to 2, every 16 frames)
+   if (frame & 15) = 0 then gosub gameover_fade
+
+   ; debris flies out for the first 48 frames
+   if es_t < 48 then deb_x[0] = deb_x[0] - 1 : deb_y[0] = deb_y[0] - 1 : deb_x[1] = deb_x[1] + 1 : deb_y[1] = deb_y[1] - 1
+   if es_t < 48 then deb_x[2] = deb_x[2] - 2 : deb_y[2] = deb_y[2] + 1 : deb_x[3] = deb_x[3] + 2 : deb_y[3] = deb_y[3] + 1
+
+   ; GAME OVER pulses red
+   temp_v = (frame / 8) & 7 : if temp_v > 3 then temp_v = 7 - temp_v
+   temp_v = temp_v * 2
+   P6C1 = $40 + temp_v : P6C2 = $44 + temp_v : P6C3 = $48 + temp_v
+
+   if es_t = 60 || es_t = 120 then gosub gameover_text
+
+   if switchreset then goto cold_start
+   if !joy0fire1 then es_ready = 1
+   if es_ready = 0 || !joy0fire1 then goto gameover_input_done
+   es_ready = 0
+   if es_t >= 120 then goto enter_hiscore
+   es_t = 119
+gameover_input_done
+
+   ; ---- draw ----
+   for iter = 0 to 5
+      temp_v = es_x[iter] : temp_w = es_y[iter]
+      plotsprite bullet_conv 4 temp_v temp_w
+   next
+   if es_t >= 48 then goto gameover_no_debris
+   for iter = 0 to 3
+      temp_v = deb_x[iter] : temp_w = deb_y[iter]
+      plotsprite bullet_conv 2 temp_v temp_w
+   next
+gameover_no_debris
+   plotsprite sprite_spaceship1 5 es_sx es_sy es_fr
+   if es_t >= 120 then if (frame & 32) > 0 then plotchars 'PRESS FIRE' 0 40 11
+   drawscreen
+   frame = frame + 1
+   goto gameover_loop
+
+gameover_stars
+   for iter = 0 to 5
+      temp_v = es_y[iter] + 1
+      if temp_v > 191 then temp_v = 0
+      es_y[iter] = temp_v
+   next
+   return
+
+gameover_fade
+   temp_v = P5C1 & 15 : if temp_v > 2 then P5C1 = P5C1 - 1
+   temp_v = P5C2 & 15 : if temp_v > 2 then P5C2 = P5C2 - 1
+   temp_v = P5C3 & 15 : if temp_v > 2 then P5C3 = P5C3 - 1
+   return
+
+gameover_text
+   clearscreen
+   plotvalue unified_font 0 score0 6 56 0
+   plotchars 'GAME OVER' 6 44 2
+   if es_t >= 120 then plotchars 'YOUR FATE AWAITS' 3 16 3
+   if es_t < 60 then goto gameover_text_done
+   ; how far you got
+   plotchars 'SECTOR' 1 28 9
+   plotvalue unified_font 1 current_level 1 92 9
+   plotchars 'OF 6' 1 108 9
+   ; the relics you'd won (one per sector cleared), centred
+   temp_v = current_level - 1
+   temp_bx = temp_v * 6 : temp_bx = 80 - temp_bx
+   if temp_v >= 1 then plotchars '*' 7 temp_bx 10
+   temp_bx = temp_bx + 12
+   if temp_v >= 2 then plotchars '+' 7 temp_bx 10
+   temp_bx = temp_bx + 12
+   if temp_v >= 3 then plotchars '-' 7 temp_bx 10
+   temp_bx = temp_bx + 12
+   if temp_v >= 4 then plotchars '/' 7 temp_bx 10
+   temp_bx = temp_bx + 12
+   if temp_v >= 5 then plotchars '<' 7 temp_bx 10
+gameover_text_done
+   savescreen
+   return
+
+   ; circle for the relics (radius 30 across, 24 down) and the ship's bob
+   data orbit_x
+   30, 28, 21, 11, 0, 245, 235, 228, 226, 228, 235, 245, 0, 11, 21, 28
+end
+   data orbit_y
+   0, 9, 17, 22, 24, 22, 17, 9, 0, 247, 239, 234, 232, 234, 239, 247
+end
+   data bob_table
+   0, 1, 2, 2, 3, 2, 2, 1, 0, 255, 254, 254, 253, 254, 254, 255
+end
+   data relic_spacing
+   0, 3, 6, 10, 13
+end
+
+   ; Game over: four falling tones
+   data sfx_gameover
+   16, 3, 14 ; version, priority, frames per chunk
+   $0F,$0C,$08
+   $12,$0C,$08
+   $15,$0C,$07
+   $1A,$0C,$07
+   $1A,$0C,$04
+   $1A,$0C,$02
+   $00,$00,$00
+end
+
+   asm
+; The five relic icons (* + - / <) as an 8x16 sprite: they are font
+; characters 46-50, side by side, so the frame number picks the relic.
+relic_gfx = unified_font + 92
+relic_gfx_width = 2
+relic_gfx_width_twoscompliment = $1E
+relic_gfx_mode = unified_font_mode
+end
+
+   ; ============================================
+   ; POKEY music player (60Hz, from the top-of-screen interrupt)
+   ; Data made by tools/vgm2music.py from the Furnace VGM exports.
+   ; ============================================
+
+topscreenroutine
+   ; Called by 7800basic's NMI as the visible screen starts, every frame,
+   ; so the music keeps time even if the game loop drops a frame.
+   ; It runs just before 7800basic services the TIA sound effects, so with
+   ; hs_mute set we cancel them here (the high score entry clicks).
+   asm
+   lda hs_mute
+   beq ts_music
+   lda sfxschedulelock     ; mid-way through scheduling: leave it this frame
+   bne ts_music
+   lda #0
+   sta sfx1pointlo
+   sta sfx1pointhi
+   sta sfx1pointlo+1
+   sta sfx1pointhi+1
+   sta AUDV0
+   sta AUDV1
+ts_music
+   jsr mus_tick
+end
+   return
+
+StopMusic
+   asm
+   jsr mus_stop
+end
+   music_ptr_hi = 0 ; pick a song again on the next PlayMusic
+   return
+
+PlayMusic
+   ; Start the right song if none is chosen yet (music_ptr_hi = 0)
+   if music_ptr_hi <> 0 then return
+   music_ptr_hi = 1
+   if boss_state > 0 && boss_state < 5 then current_song = 4 : goto play_selected
+   if current_level = 0 then goto play_title_song
+   ; Level songs: 1,4 -> Song_02; 2,5 -> Song_01; 3 -> Song_03; 6 -> Boss
+   current_song = 1
+   if current_level = 1 || current_level = 4 then current_song = 2
+   if current_level = 3 then current_song = 3
+   if current_level = 6 then current_song = 4
+   goto play_selected
+play_title_song
+   ; Title rotates through songs 1-3
+   if current_song = 0 || current_song > 3 then current_song = 1
+play_selected
+   temp_v = current_song - 1
+   asm
+   lda temp_v
+   jsr mus_start
+end
+   return
+
+   asm
+; RAM ($2600 page is otherwise unused). Zero page $C0-$C5 is 7800basic's
+; tracker block, which this game doesn't use.
+musp        = $C0      ; 2: stream pointer
+must        = $C2      ; 2: AUDF (or AUDCTL) table pointer
+mutc        = $C4      ; 2: AUDC table pointer
+mus_on      = $2600
+mus_ptrlo   = $2601    ; [5] per voice: ch1-4, AUDCTL
+mus_ptrhi   = $2606
+mus_wait    = $260B    ; frames still to hold
+mus_cur     = $2610    ; current state (table index)
+mus_retlo   = $2615    ; where to carry on after a $C0 phrase
+mus_rethi   = $261A
+mus_endlo   = $261F    ; address just past the phrase
+mus_endhi   = $2624
+mus_incall  = $2629
+mus_stlo    = $262E    ; voice start, for looping
+mus_sthi    = $2633
+mus_tflo    = $2638
+mus_tfhi    = $263D
+mus_tclo    = $2642
+mus_tchi    = $2647
+mus_len     = $264C    ; scratch
+mus_reg     = $264D    ; scratch
+
+; mus_start: A = song number (0-3). Called from the game, not the NMI.
+mus_start
+    sta mus_reg
+    lda #0
+    sta mus_on              ; keeps mus_tick (and its zero page) out
+    lda mus_reg             ; header = mus_songs + song * 30
+    asl
+    sta mus_len
+    asl
+    asl
+    asl
+    asl
+    sec
+    sbc mus_len
+    clc
+    adc #<mus_songs
+    sta musp
+    lda #>mus_songs
+    adc #0
+    sta musp+1
+    ldy #0
+    ldx #0
+ms_voice
+    lda (musp),y
+    sta mus_stlo,x
+    sta mus_ptrlo,x
+    iny
+    lda (musp),y
+    sta mus_sthi,x
+    sta mus_ptrhi,x
+    iny
+    lda (musp),y
+    sta mus_tflo,x
+    iny
+    lda (musp),y
+    sta mus_tfhi,x
+    iny
+    lda (musp),y
+    sta mus_tclo,x
+    iny
+    lda (musp),y
+    sta mus_tchi,x
+    iny
+    lda #0
+    sta mus_wait,x
+    sta mus_incall,x
+    inx
+    cpx #5
+    bne ms_voice
+    lda #1
+    sta mus_on
+    rts
+
+mus_stop
+    lda #0
+    sta mus_on
+    sta $0451               ; AUDC1-4 silent
+    sta $0453
+    sta $0455
+    sta $0457
+    sta $0458               ; AUDCTL
+    rts
+
+; mus_tick: one frame of every voice. Runs in the NMI: uses only its own
+; zero page and RAM. Nothing while paused (7800basic silences POKEY then).
+mus_tick
+    lda pausestate
+    bne mt_rts
+    lda mus_on
+    bne mt_go
+mt_rts
+    rts
+mt_go
+    ldx #4
+mt_voice
+    lda mus_wait,x
+    beq mt_read
+    dec mus_wait,x
+    jmp mt_apply
+mt_read
+    lda mus_ptrlo,x
+    sta musp
+    lda mus_ptrhi,x
+    sta musp+1
+mt_cmd
+    lda mus_incall,x        ; end of a $C0 phrase: back to the caller
+    beq mt_fetch
+    lda musp
+    cmp mus_endlo,x
+    bne mt_fetch
+    lda musp+1
+    cmp mus_endhi,x
+    bne mt_fetch
+    lda mus_retlo,x
+    sta musp
+    lda mus_rethi,x
+    sta musp+1
+    lda #0
+    sta mus_incall,x
+mt_fetch
+    ldy #0
+    lda (musp),y
+    bpl mt_state            ; $00-$7F state
+    cmp #$C0
+    bcc mt_hold             ; $80-$BF hold
+    beq mt_call             ; $C0 phrase
+    lda mus_stlo,x          ; $FF: start the voice over
+    sta musp
+    lda mus_sthi,x
+    sta musp+1
+    jmp mt_cmd
+mt_call
+    ldy #3
+    lda (musp),y
+    sta mus_len
+    lda musp
+    clc
+    adc #4
+    sta mus_retlo,x
+    lda musp+1
+    adc #0
+    sta mus_rethi,x
+    ldy #1
+    lda (musp),y
+    pha
+    iny
+    lda (musp),y
+    sta musp+1
+    pla
+    sta musp
+    clc
+    adc mus_len
+    sta mus_endlo,x
+    lda musp+1
+    adc #0
+    sta mus_endhi,x
+    lda #1
+    sta mus_incall,x
+    jmp mt_cmd
+mt_state
+    sta mus_cur,x
+    jmp mt_advance
+mt_hold
+    and #$3F
+    sta mus_wait,x
+mt_advance
+    inc musp
+    bne mt_store
+    inc musp+1
+mt_store
+    lda musp
+    sta mus_ptrlo,x
+    lda musp+1
+    sta mus_ptrhi,x
+mt_apply                    ; write this voice's current state every frame
+    lda mus_tflo,x
+    sta must
+    lda mus_tfhi,x
+    sta must+1
+    lda mus_tclo,x
+    sta mutc
+    lda mus_tchi,x
+    sta mutc+1
+    txa
+    asl
+    sta mus_reg
+    ldy mus_cur,x
+    lda (mutc),y
+    pha
+    lda (must),y
+    ldy mus_reg
+    cpx #4
+    beq mt_audctl
+    sta $0450,y             ; AUDFn
+    pla
+    sta $0451,y             ; AUDCn
+    jmp mt_next
+mt_audctl
+    sta $0458               ; AUDCTL
+    pla
+mt_next
+    dex
+    bmi mt_done
+    jmp mt_voice
+mt_done
+    rts
+
+   include "music/music_data.asm"
+end
+
+   ; ---- Everything below lives in the DMA hole at $D000 (4KB) ----
+   ; Holey DMA makes this space between graphics blocks usable for code.
+   dmahole 0
+
 level_complete
    ; All fighters destroyed - level won!
    gosub StopMusic
@@ -3146,12 +3679,14 @@ level_next_restore
 lose_life
    ; Shields depleted - lose a life
    player_lives = player_lives - 1
-   
+   gosub update_bars       ; the killing hit empties the shield bar
+   gosub refresh_static_ui ; hearts show the lives left during the explosion
+
    ; Stop Music
    gosub StopMusic
    
    ; Play Explosion Sound
-   playsfx 1
+   playsfx sfx_explode
    
    ; Death Animation Loop (8 frames)
    ; Use simple loop with frame delay
@@ -3260,15 +3795,9 @@ restart_level_common
    ; Clear screen from level complete/death displays
    clearscreen
    
-   ; Redraw and save static UI elements (hearts, treasures)
-   gosub draw_lives
-   gosub draw_treasures
-   
-   ; Force redraw of dynamic elements wiped by clearscreen
-   cached_shield = 255
-   cached_boss_hp = 255
-   
-   savescreen
+   ; Redraw and save static UI elements (hearts, treasures, bars)
+   gosub update_bars
+   gosub refresh_static_ui
    
    ; Reset player position - Segment 1 (Center of 512x512)
    px = 72 : py = 90
@@ -3351,258 +3880,13 @@ set_level_config
    return
 
 you_win_game
-   ; Won all levels!
-   gosub StopMusic
-   clearscreen
-   BACKGRND=$00  ; Black (was Green)
-   
-   ; Celebratory Text
-   plotchars 'VICTORY' 7 52 2
-   plotchars 'THE GALAXY IS SAFE' 1 4 4
-   plotchars 'YOU ARE A HERO' 3 24 6
-   plotchars 'THANKS FOR PLAYING' 5 4 8
-   plotchars 'PRESS FIRE' 0 40 10
-   
-   plotvalue unified_font 0 score0 6 56 0
-
-   ; Flash celebration
-   drawscreen
-   ; Wait for button release first
-you_win_release
-   if joy0fire1 then goto you_win_release
-   
-   ; Now wait for new press
-   screen_timer = 60 ; 1s input delay
-   frame = 0
-you_win_wait
-   frame = frame + 1
-   if switchreset then goto cold_start
-   if screen_timer > 0 then screen_timer = screen_timer - 1
-   if screen_timer > 0 then goto you_win_wait 
-   
-   drawscreen
-   if !joy0fire1 then goto you_win_wait
-   goto cold_start
-
-
+   goto victory_screen
 
 you_lose
-   ; Game Over - no lives left
-   gosub StopMusic
-   clearscreen
-   BACKGRND=$00
-   
-   screen_timer = 60 ; 1s input delay
-   
-   ; plotchars 'DO NOT GIVE UP'   1 24 4
-   plotchars 'TRY AGAIN'        0 44 6
-   plotchars 'YOUR FATE AWAITS' 1 16 8
-   
-   plotvalue unified_font 0 score0 6 56 0
-   drawscreen
-   
-   ; Wait for button release
-you_lose_release
-   if joy0fire1 then goto you_lose_release
-   
-   ; Wait for button press with timeout
-you_lose_wait
-   drawscreen ; Sync to 60Hz
-   
-   frame = frame + 1
-   if switchreset then goto game_over_restore
-   
-   if screen_timer > 0 then screen_timer = screen_timer - 1
-   if screen_timer > 0 then goto you_lose_wait
-   
-   if !joy0fire1 then goto you_lose_wait
-   
-   if !joy0fire1 then goto you_lose_wait
+   goto gameover_screen
 
 game_over_restore
    goto cold_start
-
-   ; ============================================
-   ; POKEY VGM Register Stream Driver (ASM)
-   ; ============================================
-
-StopMusic
-   asm
-   lda #0
-   sta $0451 ; AUDC1
-   sta $0453 ; AUDC2
-   sta $0455 ; AUDC3
-   sta $0457 ; AUDC4
-end
-   return
-
-PlayMusic
-   if !(frame & 1) then return
-   asm
-   ; Check if initialized (high byte != 0)
-   lda music_ptr_hi
-    bne .SetupPtr
-    
-    ; Check for Active Boss (State 1-4)
-    lda boss_state
-    cmp #5
-    bcs .CheckLevel ; If State >= 5 (Defeated), ignore boss music
-    cmp #1
-    bcc .CheckLevel ; If State < 1 (Inactive), ignore boss music
-    jmp .UseBoss    ; Else play Boss Music
-
-.CheckLevel:
-    ; Initialize pointer based on current_level and current_song (for rotation)
-    lda current_level
-    bne .NotTitle
-    
-    ; Title Screen (Level 0) - Support Rotation
-    lda current_song
-    cmp #3
-    beq .UseSong3
-    cmp #2
-    beq .UseSong2
-    jmp .UseSong1
-
-.NotTitle:
-    cmp #6
-    beq .UseBoss
-    cmp #3
-    beq .UseSong3
-    cmp #1
-    beq .UseSong2
-    cmp #4
-    beq .UseSong2
-   
-   ; Use Song_01 (Title, Level 2, Level 5)
-.UseSong1:
-   lda #1
-   sta current_song     ; Track which song is playing
-   lda #<Song_01_Data
-   sta music_ptr_lo
-   lda #>Song_01_Data
-   sta music_ptr_hi
-   jmp .SetupPtr
-
-.UseBoss:
-   lda #4
-   sta current_song
-   lda #<Song_Boss_Data
-   sta music_ptr_lo
-   lda #>Song_Boss_Data
-   sta music_ptr_hi
-   jmp .SetupPtr
-
-.UseSong3:
-   lda #3
-   sta current_song
-   lda #<Song_03_Data
-   sta music_ptr_lo
-   lda #>Song_03_Data
-   sta music_ptr_hi
-   jmp .SetupPtr
-   
-.UseSong2:
-   lda #2
-   sta current_song     ; Track which song is playing
-   lda #<Song_02_Data
-   sta music_ptr_lo
-   lda #>Song_02_Data
-   sta music_ptr_hi
-
-.SetupPtr:
-   ; Copy persistent pointer to ZP for indirect access
-   lda music_ptr_lo
-   sta $E2 ; music_zp_lo (var98)
-   lda music_ptr_hi
-   sta $E3 ; music_zp_hi (var99)
-
-   ; Process Frame
-   ldy #0
-.Loop:
-   lda ($E2),y
-   cmp #$FF       ; End of Frame?
-   beq .EndFrame
-   cmp #$FE       ; End of Song?
-   beq .EndSong
-   
-   ; It is a Register Address
-   tax            ; X = Register
-   iny
-   lda ($E2),y  ; A = Value
-   sta $0450,x    ; Write to POKEY
-   iny
-   cpy #64        ; Safety: Prevent infinite processing (Max 64 bytes/frame)
-   bcs .EndFrame  ; Force exit if too many bytes
-   bne .Loop      ; Continue if not 0
-
-.EndFrame:
-   ; Advance pointer past the 0xFF
-   iny
-   tya
-   clc
-   adc music_ptr_lo
-   sta music_ptr_lo
-   lda music_ptr_hi
-   adc #0
-   sta music_ptr_hi
-   rts
-
-.EndSong:
-   ; Reset pointer based on current_song variable
-   lda current_song
-   cmp #4
-   beq .LoopBoss
-   cmp #3
-   beq .LoopSong3
-   cmp #2
-   beq .LoopSong2
-   
-.LoopSong1:
-   lda #<Song_01_Data
-   sta music_ptr_lo
-   lda #>Song_01_Data
-   sta music_ptr_hi
-   rts
-
-.LoopSong3:
-   lda #<Song_03_Data
-   sta music_ptr_lo
-   lda #>Song_03_Data
-   sta music_ptr_hi
-   rts
-   
-.LoopSong2:
-   lda #<Song_02_Data
-   sta music_ptr_lo
-   lda #>Song_02_Data
-   sta music_ptr_hi
-   rts
-
-.LoopBoss:
-   lda #<Song_Boss_Data
-   sta music_ptr_lo
-   lda #>Song_Boss_Data
-   sta music_ptr_hi
-   rts
-end
-
-   ; Music Data - Two Songs
-   ; Song_01: Title/Levels 2,5
-   ; Song_02: Levels 1,3,4
-   asm
-Song_01_Data:
-   incbin "music/Song_01_30hz.bin"
-   
-Song_02_Data:
-   incbin "music/Song_02_30hz.bin"
-
-Song_03_Data:
-   incbin "music/Song_03_30hz.bin"
-
-Song_Boss_Data:
-   incbin "music/Boss_30hz.bin"
-end
 
 spawn_blue_fighter
    ; Find free Blue Fighter slot
