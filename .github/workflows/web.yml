@@ -1,0 +1,18 @@
+# Publishes the web player to GitHub Pages, with js7800_astrocart's shared
+# workflow (it builds the game and the emulator; web/game.json describes the
+# page). kona: js7800_astrocart's player/publish.sh.
+
+name: Web
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  web:
+    uses: jasonfrowe/js7800_astrocart/.github/workflows/player.yml@astrocart
+    permissions:
+      contents: read
+      pages: write
+      id-token: write

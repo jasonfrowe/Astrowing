@@ -1,0 +1,23 @@
+{
+  "slug": "astrowing",
+  "title": "Astro Wing: Starfighter",
+  "title_accent": "Starfighter",
+  "tagline": "A new space shooter for the Atari 7800",
+  "rom": "build/output/astrowing.a78",
+  "build": "tools/build.sh",
+  "ready": "Press Z to start. Click or press a key for sound.",
+  "controls": [
+    ["Rotate", "[←] [→]"],
+    ["Thrust", "[↑] (counter-thrust to slow down)"],
+    ["Fire", "[Z] (hold for rapid fire, once upgraded)"],
+    ["Pause", "[F4]"],
+    ["Restart", "[F3] Reset"]
+  ],
+  "about": [
+    "The Evil Empire has scattered five Relics of Power across the cosmos. Fly the M-78 Starfighter through six sectors: destroy the enemy fighters, dodge the asteroids, and claim each sector's reward.",
+    "Every sector cleared upgrades the ship: twin blasters, a faster engine, a stronger hull, a quicker reactor and an extra life, for the flagship waiting in the sixth.",
+    "Asteroids cannot be destroyed, and inertia is real: thrust the other way to slow down."
+  ],
+  "repo": "https://github.com/jasonfrowe/Astrowing",
+  "image": "docs/Astrowing_screenshot.png"
+}
