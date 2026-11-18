@@ -3,6 +3,10 @@
 ## A New 7800 Adventure
 **By Jason Rowe**
 
+[![Astro Wing gameplay: click to play it in your browser](docs/gameplay.png)](https://jasonfrowe.github.io/Astrowing/)
+
+**[▶ Play it in your browser](https://jasonfrowe.github.io/Astrowing/)** (keyboard or gamepad), or on [jasonrowe.org](https://jasonrowe.org/Atari7800/astrowing/). It runs in [js7800_astrocart](https://github.com/jasonfrowe/js7800_astrocart), an Atari 7800 emulator with the AstroCart's math unit and second POKEY.
+
 ---
 
 ## 🚀 Mission Briefing
